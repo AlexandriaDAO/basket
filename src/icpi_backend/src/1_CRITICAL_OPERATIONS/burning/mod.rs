@@ -80,9 +80,7 @@ pub async fn burn_icpi(caller: Principal, amount: Nat) -> Result<BurnResult> {
 
     // NOW collect fee (after all validations passed)
     // Fee is 0.1 ckUSDT - user must have approved backend for this amount
-    let _ckusdt = Principal::from_text(crate::infrastructure::constants::CKUSDT_CANISTER_ID)
-        .map_err(|e| IcpiError::Other(format!("Invalid ckUSDT principal: {}", e)))?;
-
+    // Same fee structure as minting (prevents spam, covers compute costs)
     ic_cdk::println!("Collecting 0.1 ckUSDT burn fee from user {}", caller);
     match crate::_1_CRITICAL_OPERATIONS::minting::fee_handler::collect_mint_fee(caller).await {
         Ok(_) => {
