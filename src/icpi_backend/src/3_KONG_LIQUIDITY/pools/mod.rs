@@ -53,6 +53,15 @@ pub async fn get_token_price_in_usdt(token: &TrackedToken) -> Result<f64> {
 
             let price_usdt = receive_e6 as f64 / 1_000_000.0; // e6 → f64
 
+            // Sanity check: Prices should be reasonable (between $0.000001 and $1M)
+            if price_usdt <= 0.0 || price_usdt > 1_000_000.0 {
+                ic_cdk::println!("⚠️ Unrealistic price for {}: {} ckUSDT", symbol, price_usdt);
+                return Err(IcpiError::Other(format!(
+                    "Unrealistic price for {}: {} (expected 0.000001 to 1,000,000)",
+                    symbol, price_usdt
+                )));
+            }
+
             ic_cdk::println!("✅ {} price: {} ckUSDT", symbol, price_usdt);
             Ok(price_usdt)
         }

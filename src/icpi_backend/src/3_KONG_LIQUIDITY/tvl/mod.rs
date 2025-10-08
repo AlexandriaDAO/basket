@@ -38,9 +38,9 @@ pub async fn calculate_kong_locker_tvl() -> Result<Vec<(TrackedToken, f64)>> {
     }
 
     // Initialize TVL accumulator for each tracked token
-    let tracked_tokens = vec![TrackedToken::ALEX, TrackedToken::ZERO, TrackedToken::KONG, TrackedToken::BOB];
+    let tracked_tokens = TrackedToken::all();
     let mut tvl_map: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
-    for token in &tracked_tokens {
+    for token in tracked_tokens {
         tvl_map.insert(token.to_symbol().to_string(), 0.0);
     }
 
@@ -86,7 +86,7 @@ pub async fn calculate_kong_locker_tvl() -> Result<Vec<(TrackedToken, f64)>> {
 
                     // Check symbol_0 and symbol_1 for tracked tokens
                     let mut tracked_found = false;
-                    for token in &tracked_tokens {
+                    for token in tracked_tokens {
                         let tracked_symbol = token.to_symbol();
                         if lp.symbol_0 == tracked_symbol {
                             // Add only this token's side of the LP
