@@ -1,8 +1,56 @@
 # Frontend Refactor Status
 
-## ✅ REFACTORING COMPLETE
+## ✅ COMPLETE AND DEPLOYED
+
+**Status**: Refactored, built, and deployed to mainnet
+**URL**: https://qhlmp-5aaaa-aaaam-qd4jq-cai.icp0.io
+**Branch**: `fix/frontend-loading-missing-api-methods`
+**Repository**: AlexandriaDAO/basket
+**Working Directory**: `/home/theseus/alexandria/basket`
 
 All code refactoring is complete and follows the alex_frontend actor initialization pattern.
+
+---
+
+## Quick Context for Fresh Agent
+
+### What This Is
+A complete frontend refactoring that fixes actor initialization race conditions causing 20-second delays and missing data in the ICPI (Internet Computer Portfolio Index) frontend.
+
+### Project Structure
+```
+/home/theseus/alexandria/basket/
+├── src/
+│   ├── icpi_frontend/          # Frontend app (React + Vite)
+│   │   ├── src/
+│   │   │   ├── App.tsx         # Main app (REFACTORED)
+│   │   │   ├── hooks/
+│   │   │   │   ├── useICPI.ts  # Data hooks (REFACTORED)
+│   │   │   │   └── actors/     # New actor hooks
+│   │   │   │       ├── useICPIBackend.ts
+│   │   │   │       └── useICPIToken.ts
+│   │   │   └── components/     # UI components
+│   │   ├── package.json
+│   │   └── tailwind.config.js
+│   └── icpi_backend/           # Backend canister (Rust)
+├── package.json                # Root workspace config
+├── FRONTEND_REFACTOR_STATUS.md # This file
+└── QUICK_FIX_BUILD.md          # Build troubleshooting guide
+```
+
+### Prerequisites
+- ✅ dfx CLI installed and authenticated
+- ✅ npm/node installed
+- ✅ Access to mainnet deployment
+- ✅ Working directory: `/home/theseus/alexandria/basket`
+- ✅ Git branch: `fix/frontend-loading-missing-api-methods`
+
+### Current State
+- ✅ Code refactored and committed
+- ✅ Build fix applied (tailwind deps at root)
+- ✅ Deployed to mainnet
+- ⏳ **NEEDS VERIFICATION** - see Testing Checklist below
+- ⏳ **NEEDS MERGE** - after verification passes
 
 ---
 
@@ -134,30 +182,22 @@ function AppContent() {
 
 ## Build Status
 
-### ✅ Local Build Works
+### ✅ FIXED - Build Works
 ```bash
-cd src/icpi_frontend
-npm run build
-# ✓ built in 6.61s
+# Solution applied: Install tailwind deps at workspace root
+npm install tailwindcss tailwindcss-animate @tailwindcss/typography --workspace-root --legacy-peer-deps
+
+# Build and deploy
+dfx deploy --network ic icpi_frontend
+# ✅ Deployed successfully
 ```
 
-### ⚠️ Workspace Build Issue
-```bash
-cd /home/theseus/alexandria/basket
-./deploy.sh --network ic
-# Error: Cannot find module 'tailwindcss/plugin'
-```
-
-**Root Cause**: Workspace dependency resolution issue
-- Frontend builds fine standalone
-- Monorepo build can't resolve tailwindcss-animate plugin
-- Likely a workspace hoisting configuration issue
-
-**NOT a refactoring issue** - this is build tooling configuration.
+**Root Cause (RESOLVED)**: Workspace dependency resolution
+**Fix Applied**: Option B - Install at workspace root (see below)
 
 ---
 
-## How to Fix Build Issue
+## Build Fix Options (OPTION B WAS USED)
 
 ### Option 1: Build Frontend Standalone
 ```bash
@@ -168,15 +208,21 @@ cd ../..
 dfx deploy --network ic icpi_frontend  # Deploy only frontend
 ```
 
-### Option 2: Fix Workspace Dependencies
+### Option 2: Fix Workspace Dependencies ✅ USED
 ```bash
-# Install tailwindcss in root workspace
-npm install tailwindcss --workspace-root --legacy-peer-deps
+# Install tailwindcss in root workspace (THIS WAS APPLIED)
+npm install tailwindcss tailwindcss-animate @tailwindcss/typography --workspace-root --legacy-peer-deps
+
+# Then deploy normally
+dfx deploy --network ic icpi_frontend
+# ✅ Works - deployed successfully
 
 # Or add to root package.json devDependencies:
 {
   "devDependencies": {
-    "tailwindcss": "^3.4.0"
+    "tailwindcss": "^3.4.0",
+    "tailwindcss-animate": "^1.0.7",
+    "@tailwindcss/typography": "^0.5.10"
   }
 }
 ```
@@ -250,13 +296,116 @@ Branch: `fix/frontend-loading-missing-api-methods`
 
 ---
 
-## Next Steps
+## Verification Instructions (DO THIS NOW)
 
-1. **Fix workspace build** (choose option 1, 2, or 3 above)
-2. **Deploy to mainnet**
-3. **Test thoroughly** (use checklist above)
-4. **Create PR** or update existing PR #7
-5. **Iterate on feedback** if needed
+### Step 1: Open Frontend in Browser
+```
+https://qhlmp-5aaaa-aaaam-qd4jq-cai.icp0.io
+```
+
+### Step 2: Test Login
+1. Click "CONNECT WALLET"
+2. Authenticate with Internet Identity
+3. **MEASURE**: Time from auth to full page load
+   - ✅ Expected: <5 seconds
+   - ❌ Old behavior: 20+ seconds
+
+### Step 3: Verify Data Loads
+Check these sections populate with real data:
+
+**Top Stats Bar**:
+- [ ] TVL shows dollar amount (e.g., "$20.04")
+- [ ] SUPPLY shows ICPI amount (e.g., "0.42 ICPI")
+- [ ] NAV shows price (e.g., "$47.59")
+
+**Wallet Balances (Right Panel)**:
+- [ ] Shows your actual token balances (NOT all $0.00)
+- [ ] ICPI balance visible
+- [ ] ckUSDT balance visible
+- [ ] Other tokens (ALEX, ZERO, KONG, BOB) show if you have them
+- [ ] USD values calculated
+
+**Portfolio Allocation (Left Panel)**:
+- [ ] Chart/table shows ALEX, ZERO, KONG, BOB allocations
+- [ ] Target % shown for each token
+- [ ] Actual % shown for each token
+- [ ] Deviation calculated
+
+### Step 4: Check Console
+Open browser dev tools (F12) and check console:
+- [ ] No "Actor not initialized" errors
+- [ ] No React hydration errors
+- [ ] ⚠️ "get_rebalancer_status timed out" is EXPECTED and harmless
+
+### Step 5: Report Results
+If verification PASSES:
+```bash
+# Merge to main
+git checkout main
+git merge fix/frontend-loading-missing-api-methods
+git push origin main
+```
+
+If verification FAILS:
+- Document specific failures
+- Check browser console for errors
+- May need to revert: `git checkout main -- src/icpi_frontend/src/`
+
+---
+
+## Troubleshooting
+
+### Issue: Still Shows 20-Second Delay
+**Likely Cause**: Old build cached
+**Fix**: Hard refresh (Ctrl+Shift+R or Cmd+Shift+R)
+
+### Issue: Balances Still Show $0.00
+**Check**: Are you connected with the correct principal?
+**Check**: Do you actually have token balances?
+**Check**: Console errors related to balance queries?
+
+### Issue: Allocations Still Missing
+**Check**: Does get_index_state_cached return data?
+**Test**: `dfx canister --network ic call --update ev6xm-haaaa-aaaap-qqcza-cai get_index_state_cached`
+**Expected**: Returns portfolio state, not error
+
+### Issue: Build Fails After Pulling Branch
+**Fix**: Re-run build fix
+```bash
+npm install tailwindcss tailwindcss-animate @tailwindcss/typography --workspace-root --legacy-peer-deps
+```
+
+---
+
+## Rollback Procedure (If Needed)
+
+If refactored version has critical issues:
+
+```bash
+# 1. Revert code to main
+git checkout main
+cd src/icpi_frontend
+
+# 2. Rebuild old version
+npm run build
+
+# 3. Redeploy old version
+cd ../..
+dfx deploy --network ic icpi_frontend
+
+# 4. Verify old version works
+# Visit: https://qhlmp-5aaaa-aaaam-qd4jq-cai.icp0.io
+```
+
+---
+
+## Next Steps for Fresh Agent
+
+1. **FIRST**: Run verification (Step 1-5 above)
+2. **IF PASS**: Merge to main and close PR
+3. **IF FAIL**: Document failures and investigate
+4. **AFTER MERGE**: Update PR #7 with results
+5. **CLEANUP**: Delete old backup files if desired
 
 ---
 
