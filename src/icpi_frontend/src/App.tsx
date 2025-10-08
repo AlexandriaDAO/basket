@@ -41,68 +41,84 @@ const queryClient = new QueryClient({
   },
 });
 
+// Helper function to create actor with authentication (P1: Extract to reduce duplication)
+async function createActorWithAuth(identity: Identity): Promise<{ agent: HttpAgent; actor: Actor }> {
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const host = isLocal ? 'http://localhost:4943' : 'https://icp-api.io';
+
+  const agent = new HttpAgent({
+    identity,
+    host,
+    ingressExpiryMs: 5 * 60 * 1000, // 5 minutes for long-running update calls
+  });
+
+  // P1: Make fetchRootKey await consistent
+  if (isLocal) {
+    await agent.fetchRootKey().catch(console.error);
+  }
+
+  const actor = Actor.createActor(icpiIdlFactory, {
+    agent,
+    canisterId: icpiCanisterId,
+  });
+
+  return { agent, actor };
+}
+
 function AppContent() {
-  const queryClient = useQueryClient()
   const [authClient, setAuthClient] = useState<AuthClient | null>(null);
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [principal, setPrincipal] = useState<string>('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [actor, setActor] = useState<Actor | null>(null);
   const [agent, setAgent] = useState<HttpAgent | null>(null);
-  const [autoRebalance, setAutoRebalance] = useState(true);
-  const [sendModalToken, setSendModalToken] = useState<UserTokenBalance | null>(null);
-  const [currentView, setCurrentView] = useState<'dashboard' | 'docs'>('dashboard');
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Performance timing - mark page load start
   useEffect(() => {
     performance.mark('app-start');
   }, []);
 
-  // Use React Query hooks
-  const { data: indexState, isLoading: indexLoading } = useIndexState(actor);
-  const { data: rebalancerStatus } = useRebalancerStatus(actor);
-  const { data: tvlData } = useTVLData(actor);
-  const { data: holdings } = useHoldings(actor);
-  const { data: allocations } = useAllocation(actor);
-  const { data: actualAllocations } = useActualAllocations(actor, icpiCanisterId, agent);
-  const { data: totalSupply } = useTotalSupply(actor);
-
-  const mintMutation = useMintICPI(actor, agent);
-  const redeemMutation = useRedeemICPI(actor, agent);
-  const rebalanceMutation = useManualRebalance(actor);
-
-  // Wallet balance hooks
-  const { data: walletBalances, isLoading: balancesLoading } = useUserWalletBalances(
-    actor,
-    principal,
-    agent
-  );
-  const transferMutation = useTransferToken(agent);
-
+  // Atomic initialization - create actor in single useEffect to avoid race condition
   useEffect(() => {
-    AuthClient.create({
-      idleOptions: {
-        idleTimeout: 1000 * 60 * 60 * 24 * 7, // 7 days
-        disableDefaultIdleCallback: true,
-        disableIdle: false,
-      }
-    }).then(async (client) => {
-      setAuthClient(client);
-      const isAuth = await client.isAuthenticated();
-      if (isAuth) {
-        const identity = client.getIdentity();
-        setIdentity(identity);
-        setPrincipal(identity.getPrincipal().toString());
-        setIsAuthenticated(true);
-      }
-    });
-  }, []);
+    async function initialize() {
+      try {
+        const client = await AuthClient.create({
+          idleOptions: {
+            idleTimeout: 1000 * 60 * 60 * 24 * 7, // 7 days
+            disableDefaultIdleCallback: true,
+            disableIdle: false,
+          }
+        });
 
-  useEffect(() => {
-    if (isAuthenticated && identity) {
-      createActor();
+        setAuthClient(client);
+        const isAuth = await client.isAuthenticated();
+
+        if (isAuth) {
+          const identity = client.getIdentity();
+          const newPrincipal = identity.getPrincipal().toString();
+
+          // Create actor atomically with auth state using helper function
+          const { agent: newAgent, actor: newActor } = await createActorWithAuth(identity);
+
+          // Set all auth-related state atomically
+          setIdentity(identity);
+          setPrincipal(newPrincipal);
+          setAgent(newAgent);
+          setActor(newActor);
+          setIsAuthenticated(true);
+        }
+
+        // Mark as initialized regardless of auth status
+        setIsInitialized(true);
+      } catch (error) {
+        console.warn('Failed to initialize:', error);
+        setIsInitialized(true); // Still mark as initialized to show error state
+      }
     }
-  }, [isAuthenticated, identity]);
+
+    initialize();
+  }, []);
 
   const login = async () => {
     if (!authClient) return;
@@ -114,10 +130,17 @@ function AppContent() {
     await authClient.login({
       identityProvider,
       maxTimeToLive: weekInNanoSeconds,
-      onSuccess: () => {
+      onSuccess: async () => {
         const identity = authClient.getIdentity();
+        const newPrincipal = identity.getPrincipal().toString();
+
+        // Create actor atomically on login using helper function
+        const { agent: newAgent, actor: newActor } = await createActorWithAuth(identity);
+
         setIdentity(identity);
-        setPrincipal(identity.getPrincipal().toString());
+        setPrincipal(newPrincipal);
+        setAgent(newAgent);
+        setActor(newActor);
         setIsAuthenticated(true);
       },
     });
@@ -130,36 +153,13 @@ function AppContent() {
     setPrincipal('');
     setIsAuthenticated(false);
     setActor(null);
+    setAgent(null);
   };
 
-  const createActor = () => {
-    if (!identity) throw new Error('Not authenticated');
-
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const host = isLocal ? 'http://localhost:4943' : 'https://icp-api.io';
-
-    // Create authenticated agent with explicit polling configuration
-    const newAgent = new HttpAgent({
-      identity,
-      host,
-      // Increase ingress expiry to 5 minutes for long-running update calls
-      ingressExpiryMs: 5 * 60 * 1000,
-    });
-
-    if (isLocal) {
-      newAgent.fetchRootKey().catch(console.error);
-    }
-
-    // Use authenticated actor (needed for update calls like get_index_state)
-    const newActor = Actor.createActor(icpiIdlFactory, {
-      agent: newAgent,
-      canisterId: icpiCanisterId,
-    });
-
-    setAgent(newAgent);
-    setActor(newActor);
-    return newActor;
-  };
+  // Don't render anything until initialization is complete
+  if (!isInitialized) {
+    return <FullPageSkeleton />;
+  }
 
   if (!isAuthenticated) {
     return (
@@ -184,8 +184,62 @@ function AppContent() {
     );
   }
 
-  // Prepare data for Dashboard - no mock data, fail visibly if data unavailable
-  // Note: rebalancerStatus is optional as it may timeout, don't block UI on it
+  // Don't render dashboard hooks until actor is ready
+  if (!actor || !agent) {
+    return <FullPageSkeleton />;
+  }
+
+  // Render dashboard with guaranteed non-null actor and agent
+  return (
+    <DashboardContent
+      actor={actor}
+      agent={agent}
+      principal={principal}
+      logout={logout}
+    />
+  );
+}
+
+// Separate component that only renders when actor is guaranteed to be ready
+// This prevents the race condition where hooks fire with null actor
+function DashboardContent({
+  actor,
+  agent,
+  principal,
+  logout,
+}: {
+  actor: Actor;
+  agent: HttpAgent;
+  principal: string;
+  logout: () => Promise<void>;
+}) {
+  const queryClient = useQueryClient();
+  const [autoRebalance, setAutoRebalance] = useState(true);
+  const [sendModalToken, setSendModalToken] = useState<UserTokenBalance | null>(null);
+  const [currentView, setCurrentView] = useState<'dashboard' | 'docs'>('dashboard');
+
+  // Now hooks fire ONCE with valid actor, not multiple times with null
+  const { data: indexState, isLoading: indexLoading } = useIndexState(actor);
+  const { data: rebalancerStatus } = useRebalancerStatus(actor);
+  const { data: tvlData } = useTVLData(actor);
+  const { data: holdings } = useHoldings(actor);
+  const { data: allocations } = useAllocation(actor);
+  const { data: actualAllocations } = useActualAllocations(actor, icpiCanisterId, agent);
+  const { data: totalSupply } = useTotalSupply(actor);
+
+  const mintMutation = useMintICPI(actor, agent);
+  const redeemMutation = useRedeemICPI(actor, agent);
+  const rebalanceMutation = useManualRebalance(actor);
+
+  // Wallet balance hooks
+  const { data: walletBalances, isLoading: balancesLoading } = useUserWalletBalances(
+    actor,
+    principal,
+    agent
+  );
+  const transferMutation = useTransferToken(agent);
+
+  // Show skeleton while initial query is loading
   if (!indexState || indexLoading) {
     return <FullPageSkeleton />;
   }
@@ -248,10 +302,6 @@ function AppContent() {
   // Derive balances from walletBalances (single source of truth)
   const userICPIBalance = walletBalances?.find(b => b.symbol === 'ICPI')?.balanceFormatted || 0
   const userUSDTBalance = walletBalances?.find(b => b.symbol === 'ckUSDT')?.balanceFormatted || 0
-
-  if (!indexState || indexLoading) {
-    return <FullPageSkeleton />;
-  }
 
   return (
     <>
