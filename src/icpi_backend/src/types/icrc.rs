@@ -98,6 +98,20 @@ pub enum TransferFromError {
     GenericError { error_code: Nat, message: String },
 }
 
+// ICRC2 Allowance arguments
+#[derive(CandidType, Deserialize, Debug, Clone)]
+pub struct AllowanceArgs {
+    pub account: Account,
+    pub spender: Account,
+}
+
+// ICRC2 Allowance result
+#[derive(CandidType, Deserialize, Debug, Clone)]
+pub struct Allowance {
+    pub allowance: Nat,
+    pub expires_at: Option<u64>,
+}
+
 // ICRC1 Metadata value
 #[derive(CandidType, Deserialize, Debug, Clone)]
 pub enum MetadataValue {

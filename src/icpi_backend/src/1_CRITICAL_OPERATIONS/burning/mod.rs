@@ -38,11 +38,85 @@ pub async fn burn_icpi(caller: Principal, amount: Nat) -> Result<BurnResult> {
     // Validate request
     burn_validator::validate_burn_request(&caller, &amount)?;
 
+    // CRITICAL: Check fee approval BEFORE other validations (Phase 3: M-2)
+    // This prevents user from wasting gas on validations if they can't afford the fee
+    // User must have approved backend for 0.1 ckUSDT on ckUSDT ledger
+    ic_cdk::println!("Checking ckUSDT fee approval for user {}", caller);
+    let ckusdt_canister = Principal::from_text(crate::infrastructure::constants::CKUSDT_CANISTER_ID)
+        .map_err(|e| IcpiError::Other(format!("Invalid ckUSDT principal: {}", e)))?;
+
+    use crate::types::icrc::{AllowanceArgs, Allowance};
+
+    let allowance_result: std::result::Result<(Allowance,), _> = ic_cdk::call(
+        ckusdt_canister,
+        "icrc2_allowance",
+        (AllowanceArgs {
+            account: crate::types::icrc::Account {
+                owner: caller,
+                subaccount: None,
+            },
+            spender: crate::types::icrc::Account {
+                owner: ic_cdk::api::id(), // Backend canister
+                subaccount: None,
+            },
+        },)
+    ).await;
+
+    match allowance_result {
+        Ok((allowance,)) => {
+            let required_fee = Nat::from(crate::infrastructure::constants::MINT_FEE_E6);
+            if allowance.allowance < required_fee {
+                ic_cdk::println!(
+                    "⚠️ Insufficient fee approval: user approved {} e6, required {} e6",
+                    allowance.allowance, required_fee
+                );
+                return Err(IcpiError::Burn(crate::infrastructure::BurnError::InsufficientFeeAllowance {
+                    required: required_fee.to_string(),
+                    approved: allowance.allowance.to_string(),
+                }));
+            }
+            ic_cdk::println!("✅ Fee approval sufficient: {} e6 approved", allowance.allowance);
+        },
+        Err((code, msg)) => {
+            // Warning only - proceed with burn, fee collection will fail with clear error if needed
+            ic_cdk::println!(
+                "⚠️ Could not check fee allowance: {:?} - {}. Proceeding...",
+                code, msg
+            );
+        }
+    }
+
     // Get current supply atomically BEFORE collecting fee
     let current_supply = crate::_2_CRITICAL_DATA::supply_tracker::get_icpi_supply_uncached().await?;
 
     if current_supply == Nat::from(0u32) {
         return Err(IcpiError::Burn(crate::infrastructure::BurnError::NoSupply));
+    }
+
+    // Phase 3: M-3 - Enforce maximum burn amount (10% of supply per transaction)
+    // This prevents burning entire supply in one transaction, reducing systemic risk
+    const MAX_BURN_PERCENTAGE: f64 = 0.10; // 10% of supply
+
+    // Convert to u128 for safe calculation
+    use num_traits::ToPrimitive;
+    let supply_u128 = current_supply.0.to_u128()
+        .ok_or_else(|| IcpiError::Other("Supply too large to process".to_string()))?;
+    let amount_u128 = amount.0.to_u128()
+        .ok_or_else(|| IcpiError::Other("Amount too large to process".to_string()))?;
+
+    let burn_percentage = amount_u128 as f64 / supply_u128 as f64;
+
+    if burn_percentage > MAX_BURN_PERCENTAGE {
+        let maximum_burn = ((supply_u128 as f64) * MAX_BURN_PERCENTAGE) as u128;
+        ic_cdk::println!(
+            "⚠️ Burn amount {} exceeds maximum {}% of supply (max: {})",
+            amount, (MAX_BURN_PERCENTAGE * 100.0) as u32, maximum_burn
+        );
+        return Err(IcpiError::Burn(crate::infrastructure::BurnError::AmountExceedsMaximum {
+            amount: amount.to_string(),
+            maximum: maximum_burn.to_string(),
+            percentage_limit: format!("{}%", (MAX_BURN_PERCENTAGE * 100.0) as u32),
+        }));
     }
 
     // CRITICAL: Check user has sufficient ICPI balance BEFORE collecting fee

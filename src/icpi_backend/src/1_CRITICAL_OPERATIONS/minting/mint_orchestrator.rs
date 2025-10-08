@@ -74,29 +74,17 @@ pub async fn complete_mint(caller: Principal, mint_id: String) -> Result<Nat> {
     }
 
     // Step 2: Take snapshot of supply and TVL BEFORE collecting deposit
+    // Phase 3: M-5 - Uses atomic parallel query to minimize time gap
     update_mint_status(&mint_id, MintStatus::Snapshotting)?;
 
-    let current_supply = match crate::_2_CRITICAL_DATA::supply_tracker::get_icpi_supply_uncached().await {
-        Ok(supply) => supply,
+    let (current_supply, current_tvl) = match crate::_2_CRITICAL_DATA::get_supply_and_tvl_atomic().await {
+        Ok((supply, tvl)) => (supply, tvl),
         Err(e) => {
             handle_mint_failure(
                 &mint_id,
                 caller,
                 pending_mint.amount.clone(),
-                format!("Failed to query ICPI supply: {}", e)
-            ).await?;
-            return Err(e);
-        }
-    };
-
-    let current_tvl = match crate::_2_CRITICAL_DATA::portfolio_value::calculate_portfolio_value_atomic().await {
-        Ok(tvl) => tvl,
-        Err(e) => {
-            handle_mint_failure(
-                &mint_id,
-                caller,
-                pending_mint.amount.clone(),
-                format!("TVL calculation failed: {}", e)
+                format!("Atomic snapshot failed: {}", e)
             ).await?;
             return Err(e);
         }
@@ -113,7 +101,29 @@ pub async fn complete_mint(caller: Principal, mint_id: String) -> Result<Nat> {
 
     ic_cdk::println!("Pre-deposit TVL: {} ckUSDT (e6), Supply: {} ICPI (e8)", current_tvl, current_supply);
 
-    // Store snapshot
+    // CRITICAL TIMING: Snapshot MUST be taken BEFORE collecting user's deposit (Phase 3: M-1)
+    //
+    // Why this order matters:
+    // 1. User's deposit should NOT be included in TVL used for their mint calculation
+    // 2. Formula: new_icpi = (deposit * supply) / tvl
+    //    - If we snapshot AFTER deposit, tvl includes user's own deposit
+    //    - This would cause under-minting (user gets fewer tokens than proportional share)
+    //
+    // Example scenario (WHY snapshot-before-deposit is correct):
+    // - Current TVL: $100, Current Supply: 100 ICPI
+    // - User deposits: $10 (should get 10% ownership)
+    // - CORRECT (snapshot before): (10 * 100) / 100 = 10 ICPI → user owns 10/110 = 9.09%
+    // - WRONG (snapshot after): (10 * 100) / 110 = 9.09 ICPI → user owns 9.09/109.09 = 8.33%
+    //
+    // Security implications:
+    // - Concurrent mints don't interfere (each uses pre-their-deposit TVL)
+    // - Maintains proportional ownership guarantee
+    // - Prevents gaming via deposit timing
+    //
+    // Staleness concern (addressed):
+    // - Time between snapshot and deposit is typically <2 seconds
+    // - Rebalancing has separate guard preventing concurrent execution
+    // - Even if stale, proportionality is maintained (deposit/tvl ratio correct)
     let snapshot = MintSnapshot {
         supply: current_supply.clone(),
         tvl: current_tvl.clone(),
@@ -122,8 +132,18 @@ pub async fn complete_mint(caller: Principal, mint_id: String) -> Result<Nat> {
 
     // Update mint with snapshot
     if let Some(mut mint) = get_pending_mint(&mint_id)? {
-        mint.snapshot = Some(snapshot);
+        mint.snapshot = Some(snapshot.clone());
         store_pending_mint(mint)?;
+    }
+
+    // Check for stale snapshot (warning only, does not block)
+    const MAX_SNAPSHOT_AGE_NANOS: u64 = 30_000_000_000; // 30 seconds
+    let snapshot_age = ic_cdk::api::time() - snapshot.timestamp;
+    if snapshot_age > MAX_SNAPSHOT_AGE_NANOS {
+        ic_cdk::println!(
+            "⚠️ WARNING: Using snapshot {} seconds old (max recommended: 30s)",
+            snapshot_age / 1_000_000_000
+        );
     }
 
     // Step 3: NOW collect deposit (after TVL snapshot taken)
