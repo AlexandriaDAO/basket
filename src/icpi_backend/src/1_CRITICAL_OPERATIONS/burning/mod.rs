@@ -67,7 +67,7 @@ pub async fn burn_icpi(caller: Principal, amount: Nat) -> Result<BurnResult> {
 
     match allowance_result {
         Ok((allowance,)) => {
-            let required_fee = Nat::from(crate::infrastructure::constants::MINT_FEE_E6);
+            let required_fee = Nat::from(crate::infrastructure::constants::MINT_FEE_AMOUNT);
             if allowance.allowance < required_fee {
                 ic_cdk::println!(
                     "⚠️ Insufficient fee approval: user approved {} e6, required {} e6",
