@@ -44,7 +44,7 @@ use infrastructure::{Result, IcpiError};
 
 #[update]
 #[candid_method(update)]
-async fn mint_icpi(amount: Nat) -> Result<String> {
+async fn initiate_mint(amount: Nat) -> Result<String> {
     let caller = ic_cdk::caller();
     _1_CRITICAL_OPERATIONS::minting::initiate_mint(caller, amount).await
 }
@@ -80,6 +80,12 @@ async fn trigger_manual_rebalance() -> Result<String> {
 #[update]
 #[candid_method(update)]
 async fn get_index_state() -> Result<types::portfolio::IndexState> {
+    Ok(_5_INFORMATIONAL::display::get_index_state_cached().await)
+}
+
+#[update]
+#[candid_method(update)]
+async fn get_index_state_cached() -> Result<types::portfolio::IndexState> {
     Ok(_5_INFORMATIONAL::display::get_index_state_cached().await)
 }
 
@@ -123,6 +129,192 @@ fn clear_caches() -> Result<String> {
 /// ```bash
 /// dfx canister call --network ic ev6xm-haaaa-aaaap-qqcza-cai test_kong_liquidity
 /// ```
+// ===== ADDITIONAL API ENDPOINTS =====
+
+#[query]
+#[candid_method(query)]
+fn check_mint_status(mint_id: String) -> Result<_1_CRITICAL_OPERATIONS::minting::MintStatus> {
+    // Query mint state from storage
+    use _1_CRITICAL_OPERATIONS::minting::mint_state::PENDING_MINTS;
+    PENDING_MINTS.with(|mints| {
+        let mints = mints.borrow();
+        mints.get(&mint_id)
+            .map(|mint| mint.status.clone())
+            .ok_or(infrastructure::IcpiError::Other(format!("Mint {} not found", mint_id)))
+    })
+}
+
+#[update]
+#[candid_method(update)]
+async fn get_tvl_summary() -> Result<types::portfolio::TvlSummary> {
+    // Calculate TVL from Kong Locker
+    let tvl_data = _3_KONG_LIQUIDITY::tvl::calculate_kong_locker_tvl().await?;
+
+    // Calculate total and percentages
+    let total_tvl: f64 = tvl_data.iter().map(|(_, v)| v).sum();
+
+    let tokens: Vec<types::portfolio::TokenTvl> = tvl_data.iter().map(|(token, usd_value)| {
+        types::portfolio::TokenTvl {
+            token: token.clone(),
+            locked_value_usd: *usd_value,
+            percentage: if total_tvl > 0.0 { (usd_value / total_tvl) * 100.0 } else { 0.0 },
+        }
+    }).collect();
+
+    Ok(types::portfolio::TvlSummary {
+        total_tvl_usd: total_tvl,
+        token_tvls: tokens,
+        timestamp: ic_cdk::api::time(),
+    })
+}
+
+#[query]
+#[candid_method(query)]
+fn get_token_metadata() -> Result<Vec<types::tokens::TokenMetadata>> {
+    use types::TrackedToken;
+
+    let tokens: Vec<types::tokens::TokenMetadata> = vec![
+        types::tokens::TokenMetadata {
+            symbol: "ALEX".to_string(),
+            canister_id: Principal::from_text("ysy5f-2qaaa-aaaap-qkmmq-cai").unwrap(),
+            decimals: 8,
+        },
+        types::tokens::TokenMetadata {
+            symbol: "ZERO".to_string(),
+            canister_id: Principal::from_text("rffwt-piaaa-aaaaa-qaacq-cai").unwrap(),
+            decimals: 8,
+        },
+        types::tokens::TokenMetadata {
+            symbol: "KONG".to_string(),
+            canister_id: Principal::from_text("73wnl-eqaaa-aaaal-qddaa-cai").unwrap(),
+            decimals: 8,
+        },
+        types::tokens::TokenMetadata {
+            symbol: "BOB".to_string(),
+            canister_id: Principal::from_text("7pail-xaaaa-aaaas-aabmq-cai").unwrap(),
+            decimals: 8,
+        },
+    ];
+    Ok(tokens)
+}
+
+#[query]
+#[candid_method(query)]
+fn get_simple_test() -> String {
+    format!("Backend is responding at {}", ic_cdk::api::time())
+}
+
+#[update]
+#[candid_method(update)]
+fn test_simple_update() -> String {
+    format!("Update call succeeded at {}", ic_cdk::api::time())
+}
+
+#[update]
+#[candid_method(update)]
+async fn debug_rebalancer() -> String {
+    format!("Rebalancer status: {:?}", _1_CRITICAL_OPERATIONS::rebalancing::get_rebalancer_status())
+}
+
+#[query]
+#[candid_method(query)]
+fn get_canister_id() -> Principal {
+    ic_cdk::id()
+}
+
+#[query]
+#[candid_method(query)]
+fn get_cycles_balance() -> Nat {
+    Nat::from(ic_cdk::api::canister_balance128())
+}
+
+#[query]
+#[candid_method(query)]
+fn greet(name: String) -> String {
+    format!("Hello, {}! Welcome to ICPI.", name)
+}
+
+// ===== ICRC1 TOKEN STANDARD ENDPOINTS =====
+
+#[query]
+#[candid_method(query)]
+fn icrc1_name() -> String {
+    "Internet Computer Portfolio Index".to_string()
+}
+
+#[query]
+#[candid_method(query)]
+fn icrc1_symbol() -> String {
+    "ICPI".to_string()
+}
+
+#[query]
+#[candid_method(query)]
+fn icrc1_decimals() -> u8 {
+    8
+}
+
+#[update]
+#[candid_method(update)]
+async fn icrc1_total_supply() -> Nat {
+    _2_CRITICAL_DATA::supply_tracker::get_icpi_supply_uncached().await
+        .unwrap_or(Nat::from(0u64))
+}
+
+#[update]
+#[candid_method(update)]
+async fn icrc1_balance_of(account: types::icrc::Account) -> Nat {
+    // Query ICPI token ledger for balance
+    let icpi_canister_id = Principal::from_text("l6lep-niaaa-aaaap-qqeda-cai").unwrap();
+
+    match ic_cdk::call::<(types::icrc::Account,), (Nat,)>(
+        icpi_canister_id,
+        "icrc1_balance_of",
+        (account,)
+    ).await {
+        Ok((balance,)) => balance,
+        Err(_) => Nat::from(0u64),
+    }
+}
+
+#[query]
+#[candid_method(query)]
+fn icrc1_fee() -> Nat {
+    Nat::from(10_000u64) // 0.0001 ICPI
+}
+
+#[query]
+#[candid_method(query)]
+fn icrc1_metadata() -> Vec<(String, types::icrc::MetadataValue)> {
+    vec![
+        ("icrc1:name".to_string(), types::icrc::MetadataValue::Text("Internet Computer Portfolio Index".to_string())),
+        ("icrc1:symbol".to_string(), types::icrc::MetadataValue::Text("ICPI".to_string())),
+        ("icrc1:decimals".to_string(), types::icrc::MetadataValue::Nat(Nat::from(8u64))),
+        ("icrc1:fee".to_string(), types::icrc::MetadataValue::Nat(Nat::from(10_000u64))),
+    ]
+}
+
+#[query]
+#[candid_method(query)]
+fn icrc1_supported_standards() -> Vec<types::icrc::StandardRecord> {
+    vec![
+        types::icrc::StandardRecord {
+            name: "ICRC-1".to_string(),
+            url: "https://github.com/dfinity/ICRC-1".to_string(),
+        },
+    ]
+}
+
+#[query]
+#[candid_method(query)]
+fn get_all_balances() -> Vec<(Principal, Nat)> {
+    // This would require maintaining a balance map, which we don't do
+    // Return empty for now as balances are in the ICPI token canister
+    vec![]
+}
+
+// ===== TESTING =====
+
 #[update]
 #[candid_method(update)]
 async fn test_kong_liquidity() -> Result<String> {

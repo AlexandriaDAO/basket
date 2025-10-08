@@ -43,3 +43,7 @@ pub struct TvlSummary {
     pub token_tvls: Vec<TokenTvl>,
     pub timestamp: u64,
 }
+
+// Aliases for .did file compatibility (all-caps TVL)
+pub type TokenTVLSummary = TokenTvl;
+pub type TVLSummary = TvlSummary;

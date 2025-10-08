@@ -41,7 +41,7 @@ pub struct PendingMint {
 }
 
 thread_local! {
-    static PENDING_MINTS: RefCell<HashMap<String, PendingMint>> =
+    pub static PENDING_MINTS: RefCell<HashMap<String, PendingMint>> =
         RefCell::new(HashMap::new());
 }
 

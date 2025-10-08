@@ -97,3 +97,17 @@ pub enum TransferFromError {
     TemporarilyUnavailable,
     GenericError { error_code: Nat, message: String },
 }
+
+// ICRC1 Metadata value
+#[derive(CandidType, Deserialize, Debug, Clone)]
+pub enum MetadataValue {
+    Nat(Nat),
+    Text(String),
+}
+
+// ICRC1 Standard record
+#[derive(CandidType, Deserialize, Debug, Clone)]
+pub struct StandardRecord {
+    pub name: String,
+    pub url: String,
+}
