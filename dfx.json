@@ -1,0 +1,37 @@
+{
+  "canisters": {
+    "icpi_backend": {
+      "candid": "src/icpi_backend/icpi_backend.did",
+      "package": "icpi_backend",
+      "type": "rust"
+    },
+    "icpi_frontend": {
+      "dependencies": [
+        "icpi_backend"
+      ],
+      "source": [
+        "src/icpi_frontend/dist"
+      ],
+      "type": "assets",
+      "workspace": "icpi_frontend"
+    },
+    "ICPI": {
+      "type": "custom",
+      "candid": "icrc1-ledger.did",
+      "wasm": "icrc1-ledger.wasm.gz"
+    },
+    "ALEX": {
+      "type": "custom",
+      "candid": "icrc1-ledger.did",
+      "wasm": "icrc1-ledger.wasm.gz"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}

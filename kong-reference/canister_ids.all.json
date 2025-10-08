@@ -1,0 +1,98 @@
+{
+  "kong_backend": {
+    "ic": "2ipq2-uqaaa-aaaar-qailq-cai",
+    "local": "2ipq2-uqaaa-aaaar-qailq-cai",
+    "staging_fe": "2ipq2-uqaaa-aaaar-qailq-cai",
+    "staging": "l4lgk-raaaa-aaaar-qahpq-cai"
+  },
+  "kong_data": {
+    "ic": "cbefx-hqaaa-aaaar-qakrq-cai",
+    "local": "cbefx-hqaaa-aaaar-qakrq-cai",
+    "staging_fe": "cbefx-hqaaa-aaaar-qakrq-cai",
+    "staging": "6ukzc-hiaaa-aaaah-qpxqa-cai"
+  },
+  "event_store": {
+    "ic": "rsp5s-2yaaa-aaaar-qaojq-cai",
+    "local": "rsp5s-2yaaa-aaaar-qaojq-cai",
+    "staging_fe": "rsp5s-2yaaa-aaaar-qaojq-cai",
+    "staging": ""
+  },
+  "kong_svelte": {
+    "ic": "3ldz4-aiaaa-aaaar-qaina-cai",
+    "local": "3ldz4-aiaaa-aaaar-qaina-cai",
+    "staging_fe": "edoy4-liaaa-aaaar-qakha-cai",
+    "staging": "edoy4-liaaa-aaaar-qakha-cai"
+  },
+  "comments": {
+    "ic": "oeluz-4iaaa-aaaao-a4lxq-cai",
+    "local": "oeluz-4iaaa-aaaao-a4lxq-cai",
+    "staging_fe": "oeluz-4iaaa-aaaao-a4lxq-cai",
+    "staging": "oeluz-4iaaa-aaaao-a4lxq-cai"
+  },
+  "kong_faucet": {
+    "ic": "",
+    "local": "ohr23-xqaaa-aaaar-qahqq-cai",
+    "staging_fe": "",
+    "staging": "ohr23-xqaaa-aaaar-qahqq-cai"
+  },
+  "ckusdt_ledger": {
+    "ic": "cngnf-vqaaa-aaaar-qag4q-cai",
+    "local": "cngnf-vqaaa-aaaar-qag4q-cai",
+    "staging_fe": "cngnf-vqaaa-aaaar-qag4q-cai",
+    "staging": "cngnf-vqaaa-aaaar-qag4q-cai"
+  },
+  "icp_ledger": {
+    "ic": "ryjl3-tyaaa-aaaaa-aaaba-cai",
+    "local": "ryjl3-tyaaa-aaaaa-aaaba-cai",
+    "staging_fe": "ryjl3-tyaaa-aaaaa-aaaba-cai",
+    "staging": "ryjl3-tyaaa-aaaaa-aaaba-cai"
+  },
+  "ckbtc_ledger": {
+    "ic": "mxzaz-hqaaa-aaaar-qaada-cai",
+    "local": "mxzaz-hqaaa-aaaar-qaada-cai",
+    "staging_fe": "mxzaz-hqaaa-aaaar-qaada-cai",
+    "staging": "mxzaz-hqaaa-aaaar-qaada-cai"
+  },
+  "cketh_ledger": {
+    "ic": "ss2fx-dyaaa-aaaar-qacoq-cai",
+    "local": "ss2fx-dyaaa-aaaar-qacoq-cai",
+    "staging_fe": "ss2fx-dyaaa-aaaar-qacoq-cai",
+    "staging": "ss2fx-dyaaa-aaaar-qacoq-cai"
+  },
+  "kong_ledger": {
+    "ic": "o7oak-iyaaa-aaaaq-aadzq-cai",
+    "local": "o7oak-iyaaa-aaaaq-aadzq-cai",
+    "staging_fe": "o7oak-iyaaa-aaaaq-aadzq-cai",
+    "staging": "o7oak-iyaaa-aaaaq-aadzq-cai"
+  },
+  "internet_identity": {
+    "local": "rdmx6-jaaaa-aaaaa-aaadq-cai",
+    "staging_fe": "rdmx6-jaaaa-aaaaa-aaadq-cai",
+    "staging": "rdmx6-jaaaa-aaaaa-aaadq-cai",
+    "ic": "rdmx6-jaaaa-aaaaa-aaadq-cai"
+  },
+  "prediction_markets_backend": {
+    "local": "qqoq7-zaaaa-aaaan-qzzvq-cai",
+    "staging_fe": "qqoq7-zaaaa-aaaan-qzzvq-cai",
+    "staging": "qqoq7-zaaaa-aaaan-qzzvq-cai",
+    "ic": "qqoq7-zaaaa-aaaan-qzzvq-cai"
+  },
+  "prediction_markets_backend_legacy": {
+    "local": "xidgj-jyaaa-aaaad-qghpq-cai",
+    "staging_fe": "xidgj-jyaaa-aaaad-qghpq-cai",
+    "staging": "xidgj-jyaaa-aaaad-qghpq-cai",
+    "ic": "xidgj-jyaaa-aaaad-qghpq-cai"
+  },
+  "trollbox": {
+    "local": "rchbn-fqaaa-aaaao-a355a-cai",
+    "staging_fe": "rchbn-fqaaa-aaaao-a355a-cai",
+    "staging": "rchbn-fqaaa-aaaao-a355a-cai",
+    "ic": "rchbn-fqaaa-aaaao-a355a-cai"
+  },
+  "ic_siws_provider": {
+    "local": "guktk-fqaaa-aaaao-a4goa-cai",
+    "staging_fe": "guktk-fqaaa-aaaao-a4goa-cai",
+    "staging": "guktk-fqaaa-aaaao-a4goa-cai",
+    "ic": "guktk-fqaaa-aaaao-a4goa-cai"
+  }
+}

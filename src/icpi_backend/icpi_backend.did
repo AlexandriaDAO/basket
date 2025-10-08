@@ -1,0 +1,152 @@
+type Account = record {
+    owner : principal;
+    subaccount : opt blob;
+};
+
+type MetadataValue = variant {
+    Nat : nat;
+    Text : text;
+};
+
+type StandardRecord = record {
+    name : text;
+    url : text;
+};
+
+type MintStatus = variant {
+    Pending;
+    CollectingFee;
+    CollectingDeposit;
+    Calculating;
+    Refunding;
+    Minting;
+    Complete : nat;
+    Failed : text;
+    FailedRefunded : text;
+    FailedNoRefund : text;
+    Expired;
+};
+
+type BurnResult = record {
+    successful_transfers : vec record { text; nat };
+    failed_transfers : vec record { text; nat; text };
+    icpi_burned : nat;
+};
+
+type TrackedToken = variant {
+    ALEX;
+    ZERO;
+    KONG;
+    BOB;
+    ckUSDT;
+};
+
+type CurrentPosition = record {
+    token : TrackedToken;
+    balance : nat;
+    usd_value : float64;
+    percentage : float64;
+};
+
+type TargetAllocation = record {
+    token : TrackedToken;
+    target_percentage : float64;
+    target_usd_value : float64;
+};
+
+type AllocationDeviation = record {
+    token : TrackedToken;
+    current_pct : float64;
+    target_pct : float64;
+    deviation_pct : float64;
+    usd_difference : float64;
+    trade_size_usd : float64;
+};
+
+type IndexState = record {
+    total_value : float64;
+    current_positions : vec CurrentPosition;
+    target_allocations : vec TargetAllocation;
+    deviations : vec AllocationDeviation;
+    timestamp : nat64;
+    ckusdt_balance : nat;
+};
+
+type TokenTVLSummary = record {
+    token : TrackedToken;
+    tvl_usd : float64;
+    percentage : float64;
+};
+
+type TVLSummary = record {
+    total_tvl_usd : float64;
+    tokens : vec TokenTVLSummary;
+    timestamp : nat64;
+};
+
+type TokenMetadata = record {
+    symbol : text;
+    canister_id : principal;
+    decimals : nat8;
+};
+
+type RebalanceAction = variant {
+    Buy : record { token : TrackedToken; usdt_amount : float64 };
+    Sell : record { token : TrackedToken; usdt_value : float64 };
+    None;
+};
+
+type RebalanceRecord = record {
+    timestamp : nat64;
+    action : RebalanceAction;
+    success : bool;
+    details : text;
+};
+
+type RebalancerStatus = record {
+    timer_active : bool;
+    last_rebalance : opt nat64;
+    next_rebalance : opt nat64;
+    recent_history : vec RebalanceRecord;
+};
+
+service : {
+    // ICRC1 Token Standard (proxied to ICPI ledger canister)
+    icrc1_name : () -> (text) query;
+    icrc1_symbol : () -> (text) query;
+    icrc1_decimals : () -> (nat8) query;
+    icrc1_total_supply : () -> (nat);  // Update method - queries real ledger
+    icrc1_balance_of : (Account) -> (nat);  // Update method - queries real ledger
+    icrc1_fee : () -> (nat) query;
+    icrc1_metadata : () -> (vec record { text; MetadataValue }) query;
+    icrc1_supported_standards : () -> (vec StandardRecord) query;
+    get_all_balances : () -> (vec record { principal; nat }) query;
+
+    // Minting
+    initiate_mint : (nat) -> (variant { Ok : text; Err : text });
+    complete_mint : (text) -> (variant { Ok : nat; Err : text });
+    check_mint_status : (text) -> (variant { Ok : MintStatus; Err : text }) query;
+
+    // Burning
+    burn_icpi : (nat) -> (variant { Ok : BurnResult; Err : text });
+
+    // Index State & Data
+    get_index_state : () -> (variant { Ok : IndexState; Err : text });
+    get_index_state_cached : () -> (variant { Ok : IndexState; Err : text }) query;
+    get_tvl_summary : () -> (variant { Ok : TVLSummary; Err : text });
+    get_token_metadata : () -> (variant { Ok : vec TokenMetadata; Err : text }) query;
+    get_tracked_tokens : () -> (vec text) query;
+    get_simple_test : () -> (text) query;
+    test_simple_update : () -> (text);
+
+    // Rebalancer
+    get_rebalancer_status : () -> (RebalancerStatus) query;
+    debug_rebalancer : () -> (text);
+
+    // System Info
+    get_canister_id : () -> (principal) query;
+    get_cycles_balance : () -> (nat) query;
+
+    // Legacy
+    greet : (text) -> (text) query;
+}

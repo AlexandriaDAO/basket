@@ -1,0 +1,71 @@
+[
+  {
+    "match": "**/*",
+    "cache": {
+      "max_age": 20
+    },
+    "headers": {
+      "X-Content-Type-Options": "nosniff"
+    }
+  },
+  {
+    "match": "**/*.html",
+    "headers": {
+      "Content-Type": "text/html"
+    }
+  },
+  {
+    "match": "**/*.js",
+    "headers": {
+      "Content-Type": "application/javascript"
+    }
+  },
+  {
+    "match": "**/*.css",
+    "headers": {
+      "Content-Type": "text/css"
+    }
+  },
+  {
+    "match": "**/*.svg",
+    "headers": {
+      "Content-Type": "image/svg+xml"
+    }
+  },
+  {
+    "match": "**/*.png",
+    "headers": {
+      "Content-Type": "image/png"
+    }
+  },
+  {
+    "match": "**/*.jpg",
+    "headers": {
+      "Content-Type": "image/jpeg"
+    }
+  },
+  {
+    "match": "**/*.jpeg",
+    "headers": {
+      "Content-Type": "image/jpeg"
+    }
+  },
+  {
+    "match": "**/*.gif",
+    "headers": {
+      "Content-Type": "image/gif"
+    }
+  },
+  {
+    "match": "**/*.woff",
+    "headers": {
+      "Content-Type": "font/woff"
+    }
+  },
+  {
+    "match": "**/*.woff2",
+    "headers": {
+      "Content-Type": "font/woff2"
+    }
+  }
+]

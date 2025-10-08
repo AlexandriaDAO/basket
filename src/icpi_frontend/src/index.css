@@ -1,0 +1,164 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Terminal aesthetic: Pure black background */
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+
+    /* Dark gray cards with subtle borders */
+    --card: 0 0% 4%;
+    --card-foreground: 0 0% 100%;
+
+    --popover: 0 0% 4%;
+    --popover-foreground: 0 0% 100%;
+
+    /* Terminal neon green */
+    --primary: 120 100% 50%;
+    --primary-foreground: 0 0% 0%;
+
+    /* Dark gray secondary */
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 60%;
+
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 50%;
+
+    /* Accent neon green */
+    --accent: 120 100% 50%;
+    --accent-foreground: 0 0% 0%;
+
+    /* Red for losses/negative */
+    --destructive: 348 100% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Green for gains/positive */
+    --success: 120 100% 50%;
+    --success-foreground: 0 0% 0%;
+
+    /* Yellow for warnings */
+    --warning: 54 100% 63%;
+    --warning-foreground: 0 0% 0%;
+
+    /* Minimal borders - darker */
+    --border: 0 0% 12%;
+    --input: 0 0% 12%;
+    --ring: 120 100% 50%;
+
+    --radius: 0.125rem;
+
+    /* Data visualization colors */
+    --chart-1: 120 100% 50%;  /* Neon green */
+    --chart-2: 189 100% 50%;  /* Cyan */
+    --chart-3: 262 83% 58%;   /* Purple */
+    --chart-4: 291 64% 42%;   /* Magenta */
+    --chart-5: 348 100% 55%;  /* Red */
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    background: hsl(0 0% 0%);
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+
+  h1 {
+    @apply text-4xl;
+  }
+
+  h2 {
+    @apply text-2xl;
+  }
+
+  h3 {
+    @apply text-xl;
+  }
+}
+
+@layer utilities {
+  .glass-effect {
+    @apply bg-card border border-border;
+  }
+
+  .gradient-border {
+    @apply relative border border-border;
+  }
+
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shimmer::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.03),
+      transparent
+    );
+    animation: shimmer 2s infinite;
+  }
+
+  .glow {
+    box-shadow: 0 0 20px rgba(0, 200, 83, 0.2);
+  }
+
+  .text-gradient {
+    @apply text-primary;
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+
+  .stats-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4;
+  }
+
+  .chart-container {
+    @apply p-4 rounded-lg glass-effect;
+  }
+
+  .number-display {
+    @apply font-mono text-2xl font-bold text-foreground;
+  }
+
+  .badge-success {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-success/10 text-success;
+  }
+
+  .badge-warning {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-warning/10 text-warning;
+  }
+
+  .badge-error {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-destructive/10 text-destructive;
+  }
+
+  .loading-skeleton {
+    @apply animate-pulse bg-muted rounded;
+  }
+}

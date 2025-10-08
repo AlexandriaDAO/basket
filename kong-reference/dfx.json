@@ -1,0 +1,233 @@
+{
+  "canisters": {
+    "kong_backend": {
+      "declarations": {
+        "node_compatibility": true
+      },
+      "package": "kong_backend",
+      "candid": "src/kong_backend/kong_backend.did",
+      "type": "custom",
+      "build": "bash ./scripts/build_kong_backend.sh",
+      "wasm": "target/wasm32-unknown-unknown/release/kong_backend.wasm",
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    },
+    "kong_data": {
+      "candid": "src/kong_data/kong_data.did",
+      "declarations": {
+        "node_compatibility": true
+      },
+      "package": "kong_data",
+      "type": "custom",
+      "build": "bash ./scripts/build_kong_data.sh",
+      "wasm": "target/wasm32-unknown-unknown/release/kong_data.wasm",
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    },
+    "event_store": {
+      "type": "custom",
+      "candid": "wasm/event_store.did",
+      "wasm": "wasm/event_store.wasm.gz",
+      "specified_id": "rsp5s-2yaaa-aaaar-qaojq-cai",
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    },
+    "kong_svelte": {
+      "source": [
+        "src/kong_svelte/dist"
+      ],
+      "type": "assets",
+      "workspace": "kong_svelte",
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    },
+    "kong_faucet": {
+      "candid": "src/kong_faucet/kong_faucet.did",
+      "declarations": {
+        "node_compatibility": true
+      },
+      "package": "kong_faucet",
+      "type": "custom",
+      "build": "bash ./scripts/build_kong_faucet.sh",
+      "wasm": "target/wasm32-unknown-unknown/release/kong_faucet.wasm",
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    },
+    "trollbox": {
+      "type": "custom",
+      "candid": "src/trollbox/trollbox.did",
+      "main": "src/trollbox/src/lib.rs",
+      "wasm": "target/wasm32-unknown-unknown/release/trollbox.wasm",
+      "package": "trollbox",
+      "build": "sh scripts/build_rust_canister.sh trollbox",
+      "declarations": {
+        "node_compatibility": true
+      },
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    },
+    "comments": {
+      "type": "custom",
+      "candid": "src/comments/comments.did",
+      "main": "src/comments/src/lib.rs",
+      "wasm": "target/wasm32-unknown-unknown/release/comments.wasm",
+      "package": "comments",
+      "build": "sh scripts/build_rust_canister.sh comments",
+      "declarations": {
+        "node_compatibility": true
+      },
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    },
+    "prediction_markets_backend": {
+      "type": "custom",
+      "candid": "src/prediction_markets_backend/prediction_markets_backend.did",
+      "main": "src/prediction_markets_backend/src/lib.rs",
+      "wasm": "target/wasm32-unknown-unknown/release/prediction_markets_backend.wasm",
+      "package": "prediction_markets_backend",
+      "build": "sh scripts/build_rust_canister.sh prediction_markets_backend",
+      "declarations": {
+        "node_compatibility": true
+      },
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    },
+    "internet_identity": {
+      "type": "custom",
+      "candid": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity.did",
+      "wasm": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity_dev.wasm.gz",
+      "frontend": {},
+      "specified_id": "rdmx6-jaaaa-aaaaa-aaadq-cai",
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    },
+    "ckusdt_ledger": {
+      "type": "custom",
+      "candid": "https://github.com/dfinity/ic/releases/download/ledger-suite-icrc-2025-04-14/ledger.did",
+      "wasm": "https://github.com/dfinity/ic/releases/download/ledger-suite-icrc-2025-04-14/ic-icrc1-ledger.wasm.gz",
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    },
+    "icp_ledger": {
+      "type": "custom",
+      "candid": "https://raw.githubusercontent.com/dfinity/ic/c87abf70cf6f0f81f7f16d9f517c3ff0db1fab1e/rs/rosetta-api/icp_ledger/ledger.did",
+      "wasm": "https://download.dfinity.systems/ic/c87abf70cf6f0f81f7f16d9f517c3ff0db1fab1e/canisters/ledger-canister.wasm.gz",
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    },
+    "ckbtc_ledger": {
+      "type": "custom",
+      "candid": "https://github.com/dfinity/ic/releases/download/ledger-suite-icrc-2025-04-14/ledger.did",
+      "wasm": "https://github.com/dfinity/ic/releases/download/ledger-suite-icrc-2025-04-14/ic-icrc1-ledger.wasm.gz",
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    },
+    "cketh_ledger": {
+      "type": "custom",
+      "candid": "https://github.com/dfinity/ic/releases/download/ledger-suite-icrc-2025-04-14/ledger.did",
+      "wasm": "https://github.com/dfinity/ic/releases/download/ledger-suite-icrc-2025-04-14/ic-icrc1-ledger-u256.wasm.gz",
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    },
+    "kong_ledger": {
+      "type": "custom",
+      "candid": "https://github.com/dfinity/ic/releases/download/ledger-suite-icrc-2025-04-14/ledger.did",
+      "wasm": "https://github.com/dfinity/ic/releases/download/ledger-suite-icrc-2025-04-14/ic-icrc1-ledger.wasm.gz",
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    },
+    "ic_siws_provider": {
+      "type": "custom",
+      "candid": "src/ic_siws_provider/ic_siws_provider.did",
+      "main": "src/ic_siws_provider/src/lib.rs",
+      "wasm": "target/wasm32-unknown-unknown/release/ic_siws_provider.wasm",
+      "package": "ic_siws_provider",
+      "build": "sh scripts/build_rust_canister.sh ic_siws_provider",
+      "specified_id": "guktk-fqaaa-aaaao-a4goa-cai",
+      "declarations": {
+        "node_compatibility": true
+      },
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "networks": {
+    "ic": {
+      "type": "persistent",
+      "providers": [
+        "https://icp0.io"
+      ]
+    },
+    "staging_fe": {
+      "type": "persistent",
+      "providers": [
+        "https://icp0.io"
+      ]
+    },
+    "staging": {
+      "type": "persistent",
+      "providers": [
+        "https://icp0.io"
+      ]
+    },
+    "local": {
+      "bind": "localhost:4943",
+      "type": "ephemeral",
+      "replica": {
+        "subnet_type": "system"
+      }
+    }
+  },
+  "version": 1
+}

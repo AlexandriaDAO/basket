@@ -1,0 +1,10 @@
+{
+  "db_updates_delay_secs": 10,
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "user": "postgres",
+    "password": "",
+    "db_name": "kong-apis"
+  }
+}

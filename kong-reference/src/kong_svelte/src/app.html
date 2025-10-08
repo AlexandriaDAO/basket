@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en" data-theme-initializing="true">
+  <head>
+    <!-- Google Tag Manager -->
+    <script>
+      (function (w, d, s, l, i) {
+        w[l] = w[l] || [];
+        w[l].push({ "gtm.start": new Date().getTime(), event: "gtm.js" });
+        var f = d.getElementsByTagName(s)[0],
+          j = d.createElement(s),
+          dl = l != "dataLayer" ? "&l=" + l : "";
+        j.async = true;
+        j.src = "https://www.googletagmanager.com/gtm.js?id=" + i + dl;
+        f.parentNode.insertBefore(j, f);
+      })(window, document, "script", "dataLayer", "GTM-5QP57VNQ");
+    </script>
+    <!-- End Google Tag Manager -->
+    <meta charset="utf-8" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="theme-color" content="#0E111B" />
+    <meta name="author" content="KongSwap" />
+    <meta name="yandex-verification" content="d943ce9c11eb25d8" />
+    
+    <!-- DNS Prefetch and Preconnect for Performance -->
+    <link rel="dns-prefetch" href="//www.googletagmanager.com" />
+    <link rel="dns-prefetch" href="//www.google-analytics.com" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    
+    <!-- Resource Hints for better performance -->
+    <link rel="preconnect" href="https://kongswap.io" />
+    <link rel="dns-prefetch" href="//kongswap.io" />
+    
+    <!-- Preload critical resources -->
+    <link rel="preload" href="/favicon.ico" as="image" type="image/x-icon" />
+    <link rel="preload" href="/android-chrome-192x192.png" as="image" type="image/png" />
+    
+    <!-- Enhanced robots directive -->
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    
+    <!-- Additional SEO meta tags -->
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    
+    <!-- Referrer Policy for Analytics -->
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    
+    <!-- Default Open Graph / Facebook Meta Tags -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://kongswap.io/" />
+    <meta property="og:title" content="KongSwap - Trade & Predict on Internet Computer" />
+    <meta property="og:description" content="Swap over 200 tokens and participate in prediction markets on Internet Computer's premier bridgeless defi platform" />
+    <meta property="og:image" content="https://3ldz4-aiaaa-aaaar-qaina-cai.icp0.io/images/banner.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:site_name" content="KongSwap" />
+    <meta property="og:logo" content="https://3ldz4-aiaaa-aaaar-qaina-cai.icp0.io/android-chrome-512x512.png" />
+
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@kongswapx" />
+    <meta name="twitter:creator" content="@kongswapx" />
+    <meta name="twitter:title" content="KongSwap - Trade & Predict on Internet Computer" />
+    <meta name="twitter:description" content="Swap over 200 tokens and participate in prediction markets on Internet Computer's premier bridgeless defi platform" />
+    <meta name="twitter:image" content="https://3ldz4-aiaaa-aaaar-qaina-cai.icp0.io/images/banner.jpg" />
+    
+    <!-- Additional Meta Tags -->
+    <meta name="description" content="Trade 50+ tokens with zero slippage and participate in prediction markets on Internet Computer's premier DEX" />
+    <meta name="keywords" content="DeFi, DEX, Internet Computer, ICP, cryptocurrency, trading, liquidity, prediction markets, KongSwap" />
+
+    %sveltekit.head%
+  </head>
+      <!-- Inline Theme Initialization - Fast loading -->
+      <script>
+        (function () {
+          // Try to load theme from localStorage
+          let initialTheme = null;
+          let themeColorScheme = null;
+          
+          try {
+            const storedThemeJson = localStorage.getItem("theme");
+            if (storedThemeJson) {
+              initialTheme = JSON.parse(storedThemeJson);
+              
+              // Map known themes to their color schemes
+              const themeColorSchemes = {
+                'dark': 'dark',
+                'light': 'light',
+                'plain-black': 'dark',
+                'nord': 'dark',
+                'modern-light': 'light',
+                'microswap': 'dark',
+                'synthwave': 'dark',
+                'dragginz': 'dark'
+              };
+              
+              themeColorScheme = themeColorSchemes[initialTheme] || 'dark';
+            }
+          } catch (e) {
+            console.error("Error loading theme:", e);
+          }
+  
+          // Check system preference if no theme found
+          if (!initialTheme) {
+            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            initialTheme = prefersDark ? "dark" : "light";
+            themeColorScheme = initialTheme;
+          }
+  
+          // Apply the color scheme class (light/dark) not the theme ID
+          document.documentElement.classList.add(themeColorScheme);
+          
+          // Also add the theme ID class for more specific targeting
+          document.documentElement.classList.add(`theme-${initialTheme}`);
+  
+          // Add basic inline styles to prevent flash based on color scheme
+          const style = document.createElement("style");
+          style.textContent = `
+            body { 
+              background-color: rgb(var(--bg-primary, ${themeColorScheme === "dark" ? "9 12 23" : "245 247 250"})); 
+              color: rgb(var(--text-primary, ${themeColorScheme === "dark" ? "255 255 255" : "17 24 39"})); 
+              transition: background-color 0.2s ease-in-out;
+            }
+          `;
+          document.head.appendChild(style);
+        })();
+      </script>
+  
+      <!-- Enhanced Structured Data (Schema.org) -->
+      <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "Organization",
+              "@id": "https://kongswap.io/#organization",
+              "name": "KongSwap",
+              "alternateName": "Kong Swap",
+              "url": "https://kongswap.io",
+              "logo": {
+                "@type": "ImageObject",
+                "url": "https://kongswap.io/images/kong_logo.png",
+                "width": 512,
+                "height": 512
+              },
+              "description": "KongSwap is the leading decentralized exchange on Internet Computer, enabling zero-slippage trading of 50+ tokens with prediction markets and DeFi services.",
+              "foundingDate": "2023",
+              "industry": "DeFi",
+              "keywords": "DeFi, DEX, Internet Computer, ICP, cryptocurrency, trading, liquidity, prediction markets",
+              "sameAs": [
+                "https://x.com/kongswapx",
+                "https://t.me/kong_swap",
+                "https://www.tiktok.com/@kongswapx",
+                "https://youtube.com/@kongswapx",
+                "https://www.instagram.com/kongswapx",
+                "https://oc.app/community/maceh-niaaa-aaaaf-bm37q-cai"
+              ]
+            },
+            {
+              "@type": "WebSite",
+              "@id": "https://kongswap.io/#website",
+              "url": "https://kongswap.io",
+              "name": "KongSwap",
+              "description": "Trade crypto with zero slippage on Internet Computer's premier DEX. Swap 50+ tokens, provide liquidity, earn rewards.",
+              "publisher": {
+                "@id": "https://kongswap.io/#organization"
+              },
+              "potentialAction": [
+                {
+                  "@type": "SearchAction",
+                  "target": {
+                    "@type": "EntryPoint",
+                    "urlTemplate": "https://kongswap.io/search?q={search_term_string}"
+                  },
+                  "query-input": "required name=search_term_string"
+                }
+              ]
+            },
+            {
+              "@type": "WebApplication",
+              "@id": "https://kongswap.io/#webapp",
+              "name": "KongSwap DEX",
+              "url": "https://kongswap.io",
+              "applicationCategory": "FinanceApplication",
+              "operatingSystem": "Web Browser",
+              "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+              },
+              "featureList": [
+                "Cryptocurrency Trading",
+                "Liquidity Provision", 
+                "Prediction Markets",
+                "Portfolio Tracking",
+                "Yield Farming"
+              ]
+            }
+          ]
+        }
+      </script>
+  <!-- Google tag (gtag.js) -->
+  <script
+    async
+    src="https://www.googletagmanager.com/gtag/js?id=G-JW23W2WSPE"
+  ></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() {
+      dataLayer.push(arguments);
+    }
+    gtag("js", new Date());
+
+    gtag("config", "G-JW23W2WSPE");
+    
+  </script>
+
+  <body data-sveltekit-preload-data="tap">
+    <!-- Google Tag Manager (noscript) -->
+    <noscript
+      ><iframe
+        src="https://www.googletagmanager.com/ns.html?id=GTM-5QP57VNQ"
+        height="0"
+        width="0"
+        style="display: none; visibility: hidden"
+      ></iframe
+    ></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+    <div style="display: contents">%sveltekit.body%</div>
+    <div id="portal-target"></div>
+  </body>
+
+
+</html>
