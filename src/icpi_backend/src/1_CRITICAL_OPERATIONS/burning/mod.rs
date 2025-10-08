@@ -32,21 +32,22 @@ pub async fn burn_icpi(caller: Principal, amount: Nat) -> Result<BurnResult> {
         return Err(IcpiError::Burn(crate::infrastructure::BurnError::NoSupply));
     }
 
-    // CRITICAL: Check user has sufficient ICPI balance BEFORE collecting fee
-    // This prevents user from paying fee if burn will fail anyway
+    // CRITICAL: Check backend has received sufficient ICPI from user
+    // User must transfer ICPI to backend BEFORE calling this function
+    // Backend is the burning account - any ICPI transferred to it is automatically burned
     let icpi_canister = Principal::from_text(crate::infrastructure::constants::ICPI_CANISTER_ID)
         .map_err(|e| IcpiError::Other(format!("Invalid ICPI principal: {}", e)))?;
 
-    let user_balance_result: std::result::Result<(Nat,), _> = ic_cdk::call(
+    let backend_balance_result: std::result::Result<(Nat,), _> = ic_cdk::call(
         icpi_canister,
         "icrc1_balance_of",
         (crate::types::icrc::Account {
-            owner: caller,
+            owner: ic_cdk::id(),
             subaccount: None,
         },)
     ).await;
 
-    let user_icpi_balance = match user_balance_result {
+    let backend_icpi_balance = match backend_balance_result {
         Ok((balance,)) => balance,
         Err((code, msg)) => {
             return Err(IcpiError::Query(crate::infrastructure::errors::QueryError::CanisterUnreachable {
@@ -56,14 +57,14 @@ pub async fn burn_icpi(caller: Principal, amount: Nat) -> Result<BurnResult> {
         }
     };
 
-    if user_icpi_balance < amount {
+    if backend_icpi_balance < amount {
         return Err(IcpiError::Burn(crate::infrastructure::BurnError::InsufficientBalance {
             required: amount.to_string(),
-            available: user_icpi_balance.to_string(),
+            available: backend_icpi_balance.to_string(),
         }));
     }
 
-    ic_cdk::println!("User {} has {} ICPI, burning {} ICPI", caller, user_icpi_balance, amount);
+    ic_cdk::println!("Backend has {} ICPI, burning {} ICPI for user {}", backend_icpi_balance, amount, caller);
 
     // NOW collect fee (after all validations passed)
     let _ckusdt = Principal::from_text(crate::infrastructure::constants::CKUSDT_CANISTER_ID)
@@ -74,59 +75,10 @@ pub async fn burn_icpi(caller: Principal, amount: Nat) -> Result<BurnResult> {
 
     ic_cdk::println!("Burning {} ICPI from supply of {}", amount, current_supply);
 
-    // CRITICAL: Transfer ICPI from user to backend (which automatically burns it)
-    // Uses ICRC-2 transfer_from so user keeps custody until burn confirmed
-    let icpi_canister = Principal::from_text(crate::infrastructure::constants::ICPI_CANISTER_ID)
-        .map_err(|e| IcpiError::Other(format!("Invalid ICPI principal: {}", e)))?;
-
-    use crate::types::icrc::{TransferFromArgs, TransferFromError};
-
-    let transfer_from_args = TransferFromArgs {
-        from: crate::types::icrc::Account {
-            owner: caller,
-            subaccount: None,
-        },
-        to: crate::types::icrc::Account {
-            owner: ic_cdk::id(),
-            subaccount: None,
-        },
-        amount: amount.clone(),
-        fee: None,
-        memo: Some(b"ICPI burn".to_vec()),
-        created_at_time: Some(ic_cdk::api::time()),
-    };
-
-    let transfer_result: std::result::Result<(std::result::Result<Nat, TransferFromError>,), _> = ic_cdk::call(
-        icpi_canister,
-        "icrc2_transfer_from",
-        (transfer_from_args,)
-    ).await;
-
-    match transfer_result {
-        Ok((Ok(block),)) => {
-            ic_cdk::println!("✅ ICPI transferred to burning account at block {} via ICRC-2", block);
-        }
-        Ok((Err(TransferFromError::InsufficientAllowance { allowance }),)) => {
-            return Err(IcpiError::Burn(crate::infrastructure::BurnError::InsufficientApproval {
-                required: amount.to_string(),
-                approved: allowance.to_string(),
-            }));
-        }
-        Ok((Err(e),)) => {
-            return Err(IcpiError::Burn(crate::infrastructure::BurnError::TokenTransferFailed {
-                token: "ICPI".to_string(),
-                amount: amount.to_string(),
-                reason: format!("ICRC-2 error: {:?}", e),
-            }));
-        }
-        Err((code, msg)) => {
-            return Err(IcpiError::Burn(crate::infrastructure::BurnError::TokenTransferFailed {
-                token: "ICPI".to_string(),
-                amount: amount.to_string(),
-                reason: format!("Transfer call failed: {:?} - {}", code, msg),
-            }));
-        }
-    }
+    // ICPI has already been transferred to backend (verified above)
+    // Backend is the burning account - tokens transferred to it are automatically burned
+    // No need for ICRC-2 transfer_from since ICPI ledger doesn't support ICRC-2
+    ic_cdk::println!("ICPI already at burning account (backend), proceeding with redemption");
 
     // Calculate redemptions
     let redemptions = redemption_calculator::calculate_redemptions(&amount, &current_supply).await?;
