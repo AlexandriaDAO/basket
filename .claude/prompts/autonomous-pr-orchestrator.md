@@ -433,3 +433,371 @@ Replace these in the template:
 **Last Updated**: 2025-10-08
 **Tested With**: PR #4 (ICPI backend refactor)
 **Success Rate**: 3 iterations converging toward approval
+
+
+---
+
+## 🔧 Pattern: Checkpoint Merges (Multi-Phase Projects)
+
+**Use Case:** Large remediation plans with 5+ independent phases
+
+**DON'T:** Create one massive PR for all 50 fixes  
+**DO:** Create PR per logical phase, merge as checkpoints
+
+**Example: Security remediation with Phases 1-5**
+```bash
+# Phase 1: Critical fixes
+git worktree add ../project-phase1 -b fix/phase1-critical main
+# ... implement, test, PR, merge
+
+# Phase 2: Admin controls (can start while Phase 1 in review)
+git worktree add ../project-phase2 -b fix/phase2-admin main
+# ... implement, test, PR, merge
+
+# Phase 3: Medium fixes
+git worktree add ../project-phase3 -b fix/phase3-medium main
+# ... implement, test, PR, merge
+```
+
+**Benefits:**
+- ✅ Smaller, reviewable PRs (200-500 lines vs 2000+)
+- ✅ Can merge progress even if later phases blocked
+- ✅ Each merge creates safe rollback point
+- ✅ Reduces rebase complexity (smaller diffs)
+- ✅ Enables true parallel work (different agents, different phases)
+
+**When NOT to use:**
+- Changes are tightly coupled (must go together)
+- Project has <3 logical phases
+- Each phase is tiny (<50 lines)
+
+---
+
+## 🔀 Handling Merge Conflicts During Rebase
+
+**Scenario:** Your PR branch falls behind main while in review
+
+**Common Cause:** Another PR merged first, your branch needs updating
+
+**Solution:**
+
+```bash
+# 1. Fetch and rebase
+cd /path/to/worktree
+git fetch origin
+git rebase origin/main
+
+# 2. If conflicts occur (you'll see this):
+# CONFLICT (content): Merge conflict in src/foo.rs
+# Auto-merging src/bar.rs
+```
+
+**Conflict Resolution Strategy:**
+
+```rust
+// File with conflict markers:
+<<<<<<< HEAD
+// This is current main (already merged code)
+fn old_function() { ... }
+=======
+// This is YOUR code (new feature)
+fn new_function() { ... }
+>>>>>>> abc1234 (Your commit message)
+
+// Resolution steps:
+// 1. Understand BOTH sides
+// 2. Usually keep YOUR new code
+// 3. BUT integrate it with upstream structure changes
+// 4. Check for renamed constants/types
+```
+
+**After resolving:**
+```bash
+# 3. Mark resolved
+git add src/foo.rs src/bar.rs
+
+# 4. Continue rebase
+git rebase --continue
+
+# 5. Force push (--force-with-lease is safe)
+git push origin feature-branch --force-with-lease
+
+# 6. Redeploy to test
+./deploy.sh --network ic
+
+# 7. Comment on PR that rebase is done
+gh pr comment <NUM> --body "Rebased on latest main, re-tested on mainnet"
+```
+
+**Common Conflict Patterns:**
+
+1. **Constant Renamed:**
+```
+error: cannot find value `OLD_CONSTANT` in module `crate::constants`
+```
+**Fix:** `rg "CONSTANT" src/ -A 2` to find new name
+
+2. **Function Signature Changed:**
+```
+error: this function takes 2 arguments but 3 were supplied
+```
+**Fix:** Read the updated function to see new signature
+
+3. **Import Path Changed:**
+```
+error: unresolved import `crate::old_module::Foo`
+```
+**Fix:** `rg "struct Foo" src/` to find new location
+
+---
+
+## 📋 Review Wait Strategy
+
+**DON'T:** Block on review in a loop
+
+```bash
+# ❌ BAD: Blocks for 4 minutes doing nothing
+sleep 240
+gh pr view <NUM> --json comments
+```
+
+**DO:** Check status non-blockingly
+
+```bash
+# ✅ GOOD: Quick status check, then continue working
+gh pr checks <PR_NUM>
+# Output:
+# claude-review  pending  1m30s  https://...
+# (Still running, continue other work)
+
+# OR:
+# claude-review  pass     3m20s  https://...
+# (Complete, read the review)
+```
+
+**Pattern for Sequential PRs:**
+
+```bash
+# Create PR #1
+gh pr create --title "Phase 2" --body "..."
+PR_1=9
+
+# Don't wait - start Phase 3 immediately
+git worktree add ../project-phase3 -b fix/phase3 main
+cd ../project-phase3
+# ... implement Phase 3
+
+# Create PR #2
+gh pr create --title "Phase 3" --body "..."
+PR_2=12
+
+# Now check if either review is done
+gh pr checks $PR_1  # pending or complete?
+gh pr checks $PR_2  # pending or complete?
+
+# Fix whichever has feedback, continue others
+```
+
+**Pattern for Independent PRs:**
+
+```bash
+# Create PR A (admin controls)
+# Create PR B (burn limits)
+# Create PR C (tests)
+
+# All 3 can be in review simultaneously
+# Fix issues as they arise
+# Merge in any order (if truly independent)
+```
+
+**When to Actually Wait:**
+
+- User explicitly asks "wait for review"
+- Next phase depends on this PR's feedback
+- You have nothing else productive to do
+
+Otherwise: continue working, check status when convenient.
+
+---
+
+## 🚨 Handling Deployment Breaking Changes
+
+**Scenario:** Candid interface compatibility check fails
+
+```
+WARNING! Candid interface compatibility check failed for canister 'icpi_backend'.
+You are making a BREAKING change.
+
+Method debug_rebalancer is only in the expected type
+Do you want to proceed? yes/No
+```
+
+**What This Means:**
+
+- **Removed method:** Clients expecting it will break
+- **Added method:** Safe (new feature)
+- **Changed signature:** Breaking (clients use old signature)
+
+**Decision Tree:**
+
+1. **Is removed method used by frontend?**
+   ```bash
+   rg "debug_rebalancer" src/icpi_frontend/
+   ```
+   - **No results:** Safe to remove → `yes`
+   - **Has results:** Update frontend first
+
+2. **Is changed signature backward compatible?**
+   - **Added optional param:** Usually safe
+   - **Changed return type:** Breaking, needs frontend update
+
+3. **Auto-accept if safe:**
+   ```bash
+   yes | ./deploy.sh --network ic
+   ```
+
+4. **Document in PR:**
+   ```markdown
+   ## Breaking Changes
+   - Removed `debug_rebalancer` (replaced with `get_rebalancer_status`)
+   - Frontend does not use this method ✅
+   ```
+
+---
+
+## 🔄 Handling Cross-PR Dependencies
+
+**Scenario:** PR B needs types/functions from PR A
+
+**Option 1: Sequential (A must merge first)**
+```bash
+# Implement and merge PR A
+git worktree add ../project-a -b fix/feature-a main
+# ... implement, PR, merge
+
+# THEN implement PR B (which uses A's code)
+git pull origin main  # Get merged PR A
+git worktree add ../project-b -b fix/feature-b main
+# ... implement using A's types/functions
+```
+
+**Option 2: Stack PRs (B builds on A)**
+```bash
+# Implement PR A
+git worktree add ../project-a -b fix/feature-a main
+# ... implement, PR (don't merge yet)
+
+# Implement PR B based on A's branch
+git worktree add ../project-b -b fix/feature-b fix/feature-a
+# ... implement using A's code
+# Create PR B with base: fix/feature-a (not main)
+
+# Merge order: A first, then B
+```
+
+**Option 3: Duplicate Code Temporarily**
+```bash
+# If A is still in review but B is urgent:
+# Copy the types/functions you need into PR B
+# Add comment: "TODO: Remove after PR A merges"
+# After A merges: remove duplicates in follow-up commit
+```
+
+---
+
+## 📊 Iteration Metrics & When to Escalate
+
+**Good Iteration:**
+- Review comes back within 3-5 minutes
+- 0-2 P0 (blocking) issues found
+- Fixes take <30 minutes
+- Converges in 1-2 iterations
+- **Action:** Continue to next phase
+
+**Concerning Pattern:**
+- Review takes >10 minutes (check if CI is stuck)
+- Same issues repeat across iterations (not learning)
+- P0 count increases (fixes introducing bugs)
+- Fixes take >60 minutes each time
+- **Action:** Ask user for guidance
+
+**Escalation Triggers:**
+- 3+ iterations on same PR with no progress
+- Review identifies architectural issues (not small fixes)
+- Build failures that persist after multiple fix attempts
+- Test failures on mainnet that can't be reproduced
+- **Action:** Report to user, propose alternative approach
+
+---
+
+## 🎯 Updated Quick Start Examples
+
+### Example 1: Continue Multi-Phase Plan (Checkpoint Pattern)
+
+```
+You are continuing ICPI security remediation. Phases 1-3 are merged.
+
+Implement M-4 (concurrent operation guards) from SECURITY_REMEDIATION_PLAN.md.
+
+Working Directory: /home/theseus/alexandria/basket/
+Current Branch: main (clean)
+
+Use checkpoint workflow:
+1. Create worktree for M-4
+2. Implement, build, test
+3. Deploy to mainnet
+4. Create PR
+5. Fix review issues if any
+6. Merge when approved
+7. Move to next fix
+
+START NOW.
+```
+
+### Example 2: Fix Multiple PRs in Review
+
+```
+You have 3 PRs in review: #9, #10, #11
+
+Check review status for all 3:
+- If any have feedback: fix those first
+- If all pending: start next phase
+- If all approved: merge all, update main
+
+Prioritize critical feedback over minor suggestions.
+
+Working Directory: /home/theseus/alexandria/basket/
+
+START NOW.
+```
+
+---
+
+## 🛡️ Safety Checks Before Merge
+
+**Always verify before merging:**
+
+```bash
+# 1. All CI checks passed
+gh pr checks <PR_NUM>
+# Should show: pass (not pending or fail)
+
+# 2. Conflicts resolved
+gh pr view <PR_NUM> --json mergeable
+# Should show: "MERGEABLE" (not "CONFLICTING")
+
+# 3. Deployed to mainnet successfully
+# (Check deploy logs for "Deployment successful")
+
+# 4. Manual smoke test passed
+# (Test key functions on mainnet after deploy)
+
+# If all ✅: safe to merge
+gh pr merge <PR_NUM> --squash --delete-branch
+```
+
+---
+
+**Version:** 2.1 (Updated October 8, 2025 with checkpoint pattern)
+**Tested With:** ICPI Security Remediation (3 phases, 3 PRs, all merged)
+**Success Rate:** 100% (all PRs converged in 1-2 iterations)
