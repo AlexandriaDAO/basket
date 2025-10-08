@@ -19,14 +19,15 @@ pub struct BurnResult {
 
 // Main burn orchestration function
 //
-// BURN FLOW (ICRC-2):
-// 1. User calls icrc2_approve on ICPI ledger to approve backend for burn amount
-// 2. User calls this burn_icpi function
-// 3. Backend validates request and checks user has sufficient balance
-// 4. Backend collects ckUSDT fee via ICRC-2 transfer_from
-// 5. Backend pulls ICPI from user via ICRC-2 transfer_from (atomically burns it)
-// 6. Backend calculates proportional redemptions based on current portfolio
-// 7. Backend distributes redemption tokens to user
+// BURN FLOW (ICRC-2 - Requires TWO Approvals):
+// 1. User calls icrc2_approve on ckUSDT ledger to approve backend for 0.1 ckUSDT fee
+// 2. User calls icrc2_approve on ICPI ledger to approve backend for burn amount
+// 3. User calls this burn_icpi function
+// 4. Backend validates request and checks user has sufficient ICPI balance
+// 5. Backend collects 0.1 ckUSDT fee via ICRC-2 transfer_from (from ckUSDT approval)
+// 6. Backend pulls ICPI from user via ICRC-2 transfer_from (atomically burns it)
+// 7. Backend calculates proportional redemptions based on current portfolio
+// 8. Backend distributes redemption tokens to user
 //
 // SECURITY: ICRC-2 prevents race conditions because each burn atomically pulls
 // from the specific user's approved tokens, not from a shared pool
@@ -78,11 +79,21 @@ pub async fn burn_icpi(caller: Principal, amount: Nat) -> Result<BurnResult> {
     ic_cdk::println!("User {} has {} ICPI, burning {} ICPI", caller, user_icpi_balance, amount);
 
     // NOW collect fee (after all validations passed)
+    // Fee is 0.1 ckUSDT - user must have approved backend for this amount
     let _ckusdt = Principal::from_text(crate::infrastructure::constants::CKUSDT_CANISTER_ID)
         .map_err(|e| IcpiError::Other(format!("Invalid ckUSDT principal: {}", e)))?;
-    crate::_1_CRITICAL_OPERATIONS::minting::fee_handler::collect_mint_fee(caller).await?;
 
-    ic_cdk::println!("Fee collected for burn from user {}", caller);
+    ic_cdk::println!("Collecting 0.1 ckUSDT burn fee from user {}", caller);
+    match crate::_1_CRITICAL_OPERATIONS::minting::fee_handler::collect_mint_fee(caller).await {
+        Ok(_) => {
+            ic_cdk::println!("Fee collected successfully for burn from user {}", caller);
+        }
+        Err(e) => {
+            ic_cdk::println!("⚠️ Fee collection failed for burn: {}", e);
+            ic_cdk::println!("User must approve backend for 0.1 ckUSDT on ckUSDT ledger first");
+            return Err(e);
+        }
+    }
 
     ic_cdk::println!("Burning {} ICPI from supply of {}", amount, current_supply);
 
