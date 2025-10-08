@@ -40,7 +40,7 @@ pub const REBALANCE_INTERVAL_SECONDS: u64 = 3600; // 1 hour
 pub const MIN_DEVIATION_PERCENT: f64 = 1.0; // 1% minimum deviation to trigger
 pub const TRADE_INTENSITY: f64 = 0.1; // Trade 10% of deviation per hour
 pub const MAX_SLIPPAGE_PERCENT: f64 = 2.0; // 2% max slippage
-pub const MIN_TRADE_SIZE_USD: f64 = 10.0; // $10 minimum trade
+pub const MIN_TRADE_SIZE_USD: f64 = 1.0; // $1 minimum trade (lowered for small portfolios)
 
 // ===== Validation Thresholds =====
 pub const MAX_SUPPLY_CHANGE_RATIO: f64 = 1.1; // 10% max supply change

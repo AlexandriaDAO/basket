@@ -168,38 +168,69 @@ pub async fn get_portfolio_state_uncached() -> Result<IndexState> {
 
     // Calculate total value
     let total_value_nat = calculate_portfolio_value_atomic().await?;
-    // Handle u128 values properly - convert to f64 safely
-    let total_value_u128 = total_value_nat.0.to_u128().unwrap_or(0);
+    // Handle u128 values properly - convert to f64 safely with validation
+    let total_value_u128 = total_value_nat.0.to_u128()
+        .ok_or_else(|| crate::infrastructure::IcpiError::Other(
+            format!("Total portfolio value {} exceeds u128 maximum", total_value_nat)
+        ))?;
+
+    // Validate value is within f64 precision range (2^53 for exact integer representation)
+    const MAX_SAFE_F64: u128 = 1u128 << 53;  // ~9 quadrillion
+    if total_value_u128 > MAX_SAFE_F64 * 1_000_000 {
+        return Err(crate::infrastructure::IcpiError::Other(
+            format!("Portfolio value {} exceeds safe f64 precision range", total_value_u128)
+        ));
+    }
+
     let total_value_f64 = total_value_u128 as f64 / 1_000_000.0;
 
     // Build current positions using CurrentPosition type
     use crate::types::portfolio::CurrentPosition;
     use crate::types::rebalancing::TargetAllocation;
 
-    let current_positions: Vec<_> = balances.iter()
-        .filter_map(|(symbol, balance)| {
-            // Try to parse symbol to TrackedToken
-            let token = match symbol.as_str() {
-                "ALEX" => Some(TrackedToken::ALEX),
-                "ZERO" => Some(TrackedToken::ZERO),
-                "KONG" => Some(TrackedToken::KONG),
-                "BOB" => Some(TrackedToken::BOB),
-                _ => None,
+    // Build positions with proper USD values and percentages
+    let mut current_positions = Vec::new();
+    for (symbol, balance) in &balances {
+        let token = match symbol.as_str() {
+            "ALEX" => Some(TrackedToken::ALEX),
+            "ZERO" => Some(TrackedToken::ZERO),
+            "KONG" => Some(TrackedToken::KONG),
+            "BOB" => Some(TrackedToken::BOB),
+            "ckUSDT" => Some(TrackedToken::ckUSDT),
+            _ => None,
+        };
+
+        if let Some(t) = token {
+            // Calculate USD value - propagate errors to fail safely
+            let usd_value_e6 = if symbol == "ckUSDT" {
+                // ckUSDT is 1:1 with USD
+                balance.0.to_u64().ok_or_else(|| {
+                    crate::infrastructure::IcpiError::Other(
+                        format!("ckUSDT balance {} exceeds u64 maximum", balance)
+                    )
+                })?
+            } else {
+                // Get USD value from token pricing - propagate errors instead of silently failing
+                get_token_usd_value(symbol, balance).await?
             };
 
-            token.map(|t| {
-                let decimals = get_token_decimals(symbol);
-                let amount_float = balance.0.to_u64().unwrap_or(0) as f64 / 10_f64.powi(decimals as i32);
+            let usd_value = usd_value_e6 as f64 / 1_000_000.0;
 
-                CurrentPosition {
-                    token: t,
-                    balance: balance.clone(),
-                    usd_value: amount_float, // Simplified: actual value TBD
-                    percentage: 0.0, // Calculate below
-                }
-            })
-        })
-        .collect();
+            // Calculate percentage of total portfolio
+            let percentage = if total_value_f64 > 0.0 {
+                (usd_value / total_value_f64) * 100.0
+            } else {
+                0.0
+            };
+
+            current_positions.push(CurrentPosition {
+                token: t,
+                balance: balance.clone(),
+                usd_value,
+                percentage,
+            });
+        }
+    }
 
     // For now, target allocations are equal (25% each for 4 tokens)
     let target_allocations = vec![
@@ -225,8 +256,37 @@ pub async fn get_portfolio_state_uncached() -> Result<IndexState> {
         },
     ];
 
-    // Calculate deviations (placeholder)
-    let deviations = Vec::new();
+    // Calculate deviations comparing current vs target allocations
+    use crate::types::rebalancing::AllocationDeviation;
+
+    let mut deviations = Vec::new();
+    for target in &target_allocations {
+        // Find current position for this token
+        let current_position = current_positions.iter()
+            .find(|pos| pos.token == target.token);
+
+        let current_pct = current_position
+            .map(|pos| pos.percentage)
+            .unwrap_or(0.0);
+
+        let current_usd = current_position
+            .map(|pos| pos.usd_value)
+            .unwrap_or(0.0);
+
+        // Calculate deviation
+        let deviation_pct = target.target_percentage - current_pct;
+        let usd_difference = target.target_usd_value - current_usd;
+        let trade_size_usd = usd_difference.abs() * crate::infrastructure::TRADE_INTENSITY;
+
+        deviations.push(AllocationDeviation {
+            token: target.token.clone(),
+            current_pct,
+            target_pct: target.target_percentage,
+            deviation_pct,
+            usd_difference,
+            trade_size_usd,
+        });
+    }
 
     // Get ckUSDT balance specifically
     let ckusdt_balance = balances.iter()
