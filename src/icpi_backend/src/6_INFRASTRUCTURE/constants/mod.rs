@@ -9,11 +9,14 @@ pub const CKUSDT_CANISTER_ID: &str = "cngnf-vqaaa-aaaar-qag4q-cai";
 pub const KONGSWAP_BACKEND_ID: &str = "2ipq2-uqaaa-aaaar-qailq-cai";
 pub const KONG_LOCKER_ID: &str = "eazgb-giaaa-aaaap-qqc2q-cai";
 
-// Token canister IDs
-pub const ALEX_CANISTER_ID: &str = "ysy5f-2qaaa-aaaap-qkmmq-cai";
-pub const ZERO_CANISTER_ID: &str = "b3d2q-ayaaa-aaaap-qqcfq-cai";
-pub const KONG_CANISTER_ID: &str = "o7oak-iyaaa-aaaaq-aadzq-cai";
-pub const BOB_CANISTER_ID: &str = "7pail-xaaaa-aaaas-aabmq-cai";
+// SECURITY FIX (Phase 1, H-2): Removed duplicate token canister IDs
+// Token canister IDs are now managed exclusively in types/tokens.rs via TrackedToken::get_canister_id()
+// This eliminates the risk of different code paths using different canister IDs
+//
+// To get token canister IDs, use:
+//   TrackedToken::ALEX.get_canister_id()
+//   TrackedToken::ZERO.get_canister_id()
+//   etc.
 
 // ===== Token Decimals =====
 pub const ICPI_DECIMALS: u32 = 8;

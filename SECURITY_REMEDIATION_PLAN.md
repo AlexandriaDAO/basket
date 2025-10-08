@@ -3125,3 +3125,93 @@ dfx canister --network ic call ev6xm-haaaa-aaaap-qqcza-cai get_token_price '("AL
 **END OF DOCUMENT**
 
 This comprehensive plan covers all audit findings, remediation steps, testing requirements, and production preparation in a single reference document. No separate files needed - everything is here.
+
+---
+
+## REMAINING WORK (Updated October 8, 2025)
+
+### Current Status Summary
+
+**✅ Completed (Deployed to Mainnet):**
+- Phase 1 (PR #8 - MERGED): C-1, H-3, H-2
+- Phase 2 (PR #9 - UNDER REVIEW): H-1  
+- Phase 3 (PR #12 - UNDER REVIEW): M-1, M-2, M-3, M-5
+
+**🟡 Remaining (4-6 weeks):**
+- M-4: Concurrent operation guards
+- Phase 4: Comprehensive test suite
+- Phase 5: Production preparation
+- External security audit
+
+**Current Security Rating:** 7.5/10 → Target: 9.0/10
+
+---
+
+### M-4: Concurrent Operation Guards (1 day)
+
+**Status:** Deferred to Phase 4  
+**Reason:** More complex than other M-fixes, better with comprehensive testing
+
+**Implementation:**
+- Global operation state tracking (`GlobalOperation` enum)
+- Grace period between operations (60 seconds)
+- Rebalancing skips cycle if mint/burn active
+- Multiple users can still mint/burn simultaneously
+
+---
+
+### Phase 4: Comprehensive Testing (1-2 weeks)
+
+**Unit Tests:**
+- Math overflow/underflow protection
+- Decimal conversion accuracy
+- Validation logic
+- Reentrancy guards
+
+**Integration Tests (mainnet):**
+- Full mint/burn flows
+- Admin pause during operations
+- Price oracle fallbacks
+- Maximum burn limits
+
+**Stress Tests:**
+- 10+ concurrent mints
+- Large burns (near 10% limit)
+- Rebalancing during high activity
+
+---
+
+### Phase 5: Production Preparation (1 week)
+
+**Monitoring:**
+- Dashboard for TVL, supply, operations
+- Alerts for anomalies
+- Log aggregation
+
+**Documentation:**
+- User guides
+- Admin runbook
+- Incident response
+
+**Audit:**
+- External security review (2-4 weeks, $15-30K)
+- Economic modeling
+- Penetration testing
+
+---
+
+### Low-Severity Issues (Documented, Not Blocking)
+
+- Thread-local state on upgrade
+- Minimum TVL validation
+- Circuit breaker for rebalancing
+- Error message standardization
+- Rate limiting cleanup
+- Decimal documentation
+- Version tracking
+- Metrics/telemetry
+
+---
+
+**Last Updated:** October 8, 2025  
+**Next Milestone:** Merge PRs #9 and #12, then begin Phase 4

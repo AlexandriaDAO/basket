@@ -83,6 +83,10 @@ async fn get_index_state() -> Result<types::portfolio::IndexState> {
     Ok(_5_INFORMATIONAL::display::get_index_state_cached().await)
 }
 
+/// NOTE (PR #8 Review): Reviewer suggested this should be #[query] for cached reads
+/// However, the underlying implementation makes inter-canister calls (get_portfolio_state_uncached)
+/// which requires #[update]. The "cached" name is misleading - there's no actual cache implementation yet.
+/// TODO: Implement real caching in Phase 2/3, then convert to #[query]
 #[update]
 #[candid_method(update)]
 async fn get_index_state_cached() -> Result<types::portfolio::IndexState> {
@@ -131,17 +135,12 @@ fn clear_caches() -> Result<String> {
 /// ```
 // ===== ADDITIONAL API ENDPOINTS =====
 
+/// BUGFIX (PR #8 Review): Use getter function instead of direct PENDING_MINTS access
 #[query]
 #[candid_method(query)]
 fn check_mint_status(mint_id: String) -> Result<_1_CRITICAL_OPERATIONS::minting::MintStatus> {
-    // Query mint state from storage
-    use _1_CRITICAL_OPERATIONS::minting::mint_state::PENDING_MINTS;
-    PENDING_MINTS.with(|mints| {
-        let mints = mints.borrow();
-        mints.get(&mint_id)
-            .map(|mint| mint.status.clone())
-            .ok_or(infrastructure::IcpiError::Other(format!("Mint {} not found", mint_id)))
-    })
+    _1_CRITICAL_OPERATIONS::minting::mint_state::get_mint_status(&mint_id)?
+        .ok_or(infrastructure::IcpiError::Other(format!("Mint {} not found", mint_id)))
 }
 
 #[update]

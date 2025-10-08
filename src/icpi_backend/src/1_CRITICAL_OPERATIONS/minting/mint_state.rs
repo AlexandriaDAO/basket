@@ -40,8 +40,10 @@ pub struct PendingMint {
     pub snapshot: Option<MintSnapshot>,
 }
 
+/// BUGFIX (PR #8 Review): Keep internal state private to maintain encapsulation
+/// Access via getter/setter functions only (store_pending_mint, get_pending_mint, etc.)
 thread_local! {
-    pub static PENDING_MINTS: RefCell<HashMap<String, PendingMint>> =
+    static PENDING_MINTS: RefCell<HashMap<String, PendingMint>> =
         RefCell::new(HashMap::new());
 }
 
@@ -55,6 +57,14 @@ pub fn store_pending_mint(mint: PendingMint) -> Result<()> {
 pub fn get_pending_mint(mint_id: &str) -> Result<Option<PendingMint>> {
     PENDING_MINTS.with(|mints| {
         Ok(mints.borrow().get(mint_id).cloned())
+    })
+}
+
+/// Get mint status for a given mint ID
+/// Used by public API for checking mint progress
+pub fn get_mint_status(mint_id: &str) -> Result<Option<MintStatus>> {
+    PENDING_MINTS.with(|mints| {
+        Ok(mints.borrow().get(mint_id).map(|mint| mint.status.clone()))
     })
 }
 
