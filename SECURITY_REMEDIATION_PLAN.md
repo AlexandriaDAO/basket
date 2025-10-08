@@ -3215,3 +3215,74 @@ This comprehensive plan covers all audit findings, remediation steps, testing re
 
 **Last Updated:** October 8, 2025  
 **Next Milestone:** Merge PRs #9 and #12, then begin Phase 4
+
+
+---
+
+## PR Review Feedback for Phase 4 (Added October 8, 2025)
+
+### Code Quality Improvements from PR #12 Review
+
+**Priority: HIGH (Phase 4)**
+
+1. **Replace Floating Point Math in Burn Limit** (M-3 enhancement)
+   - **Location:** `burning/mod.rs:107-110`
+   - **Current:** `let burn_percentage = amount_u128 as f64 / supply_u128 as f64;`
+   - **Issue:** f64 precision loss for large u128 values
+   - **Fix:** Use integer arithmetic: `(amount * 100) / supply < 10`
+   - **Impact:** Prevents edge case precision errors in financial calculations
+
+2. **Inconsistent State Detection Should Be Hard Error** (M-5 enhancement)
+   - **Location:** `2_CRITICAL_DATA/mod.rs:37-43`
+   - **Current:** Warning only for "supply exists but TVL is zero"
+   - **Issue:** Serious data inconsistency should block operations
+   - **Fix:** Make it a hard error or require manual admin override
+   - **Impact:** Prevents operations during data corruption
+
+3. **Add Retry Logic to Atomic Snapshots** (M-5 enhancement)
+   - **Location:** `2_CRITICAL_DATA/mod.rs:24-49`
+   - **Current:** Single query attempt, fails on transient errors
+   - **Fix:** Add 1-2 retries for transient network failures
+   - **Impact:** Improves reliability during network congestion
+
+4. **Make Staleness Check Stricter** (M-1 enhancement)
+   - **Location:** `mint_orchestrator.rs:151-159`
+   - **Current:** Warning at 30s, no hard limit
+   - **Fix:** Consider hard error at 60s threshold
+   - **Impact:** Prevents operations with stale data during congestion
+
+### Test Coverage Requirements from PR #12 Review
+
+**Priority: HIGH (Phase 4)**
+
+1. **M-2 Fee Approval Check Tests:**
+   - Test successful allowance check with sufficient approval
+   - Test insufficient approval error path
+   - Test allowance check failure handling
+   - Test silent failure after multiple consecutive failures
+
+2. **M-3 Maximum Burn Limit Tests:**
+   - Test burn exactly at 10% limit (should succeed)
+   - Test burn at 10.01% (should fail)
+   - Test burn with very large supply (u128 near max)
+   - Test edge case: supply equals amount (should fail)
+
+3. **M-5 Atomic Snapshot Tests:**
+   - Test successful parallel queries
+   - Test one query fails (should retry)
+   - Test inconsistent state detection (supply but no TVL)
+   - Test time gap between queries (<100ms)
+
+### Low Priority Enhancements
+
+4. **Add Failure Counting for Allowance Checks** (M-2)
+   - Count consecutive failures
+   - Return error after 2-3 failures
+   - Prevents wasting user gas if canister is down
+
+5. **Stable Storage for Emergency Pause** (Phase 5)
+   - Currently thread-local (resets on upgrade)
+   - Documented but not ideal for production
+   - Consider stable storage implementation
+
+---
