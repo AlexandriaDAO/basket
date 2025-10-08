@@ -74,6 +74,7 @@ pub enum RebalanceError {
     AllocationCalculationError { reason: String },
     SwapFailed { token: String, amount: String, reason: String },
     InsufficientBalance { token: String, available: String, required: String },
+    RebalancingInProgress,
 }
 
 // Trading/swap errors

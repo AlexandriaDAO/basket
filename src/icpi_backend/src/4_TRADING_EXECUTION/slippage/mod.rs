@@ -62,8 +62,13 @@ pub fn validate_swap_result(
     actual: &Nat,
     max_slippage: f64,
 ) -> Result<()> {
-    let expected_f64 = expected.0.to_u64().unwrap_or(0) as f64;
-    let actual_f64 = actual.0.to_u64().unwrap_or(0) as f64;
+    // Handle potential overflow for very large Nat values
+    let expected_f64 = expected.0.to_u64()
+        .or_else(|| expected.0.to_u128().map(|v| v.min(u64::MAX as u128) as u64))
+        .unwrap_or(u64::MAX) as f64;
+    let actual_f64 = actual.0.to_u64()
+        .or_else(|| actual.0.to_u128().map(|v| v.min(u64::MAX as u128) as u64))
+        .unwrap_or(u64::MAX) as f64;
 
     // Zero expected amount is invalid
     if expected_f64 == 0.0 {

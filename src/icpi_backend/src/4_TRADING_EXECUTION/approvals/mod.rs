@@ -5,18 +5,22 @@
 //!
 //! ## Approval Flow
 //! 1. Backend approves Kongswap to spend tokens
-//! 2. Approval valid for 5 minutes
+//! 2. Approval valid for 15 minutes
 //! 3. Kongswap executes swap using `transfer_from`
 //! 4. Unused approvals expire automatically
 //!
 //! ## Safety
-//! - Short 5-minute expiry prevents lingering approvals
+//! - 15-minute expiry balances security and network congestion handling
 //! - Each approval is single-use per swap
 //! - Amount exactly matches swap requirement
 
 use candid::{Nat, Principal};
 use crate::types::{TrackedToken, icrc::{Account, ApproveArgs, ApproveResult}};
 use crate::infrastructure::{Result, IcpiError, errors::TradingError, KONGSWAP_BACKEND_ID};
+
+/// Token approval expiry time in nanoseconds (15 minutes)
+/// Increased from 5 minutes to handle potential network congestion
+const APPROVAL_EXPIRY_NANOS: u64 = 900_000_000_000;
 
 /// Approve Kongswap to spend our tokens for a swap
 ///
@@ -77,7 +81,7 @@ pub async fn approve_token_for_swap(
         },
         amount: amount.clone(),
         expected_allowance: None,
-        expires_at: Some(ic_cdk::api::time() + 300_000_000_000), // 5 min expiry
+        expires_at: Some(ic_cdk::api::time() + APPROVAL_EXPIRY_NANOS),
         fee: None, // Use default
         memo: Some(b"ICPI rebalancing".to_vec()),
         created_at_time: Some(ic_cdk::api::time()),

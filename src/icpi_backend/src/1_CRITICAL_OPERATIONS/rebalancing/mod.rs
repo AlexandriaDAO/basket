@@ -32,7 +32,7 @@
 //! ## Safety Features
 //! - Minimum $10 trade size prevents dust trades
 //! - 2% max slippage on all swaps
-//! - Keeps last 10 rebalance records for audit
+//! - Keeps last MAX_REBALANCE_HISTORY records for audit
 //! - Comprehensive logging for diagnostics
 
 use std::cell::RefCell;
@@ -40,6 +40,9 @@ use candid::{CandidType, Deserialize, Nat};
 use num_traits::ToPrimitive;
 use crate::infrastructure::{Result, IcpiError, errors::RebalanceError, REBALANCE_INTERVAL_SECONDS, MIN_TRADE_SIZE_USD, MAX_SLIPPAGE_PERCENT};
 use crate::types::{TrackedToken, rebalancing::AllocationDeviation};
+
+/// Maximum number of rebalance records to keep in history
+const MAX_REBALANCE_HISTORY: usize = 10;
 
 // === TYPES ===
 
@@ -72,6 +75,17 @@ pub struct RebalancerStatus {
 // === STATE ===
 
 /// Thread-local state for rebalancing history
+///
+/// **IMPORTANT**: Thread-local state is NOT persisted across canister upgrades.
+/// After an upgrade:
+/// - Rebalancing history will be cleared
+/// - Timer must be restarted in post_upgrade
+/// - Last rebalance timestamp will be reset
+///
+/// This is acceptable for rebalancing since:
+/// - History is only for debugging/audit trail
+/// - Timer restart is handled in post_upgrade
+/// - Rebalancing can safely restart fresh after upgrade
 struct RebalanceState {
     last_rebalance: Option<u64>,
     history: Vec<RebalanceRecord>,
@@ -89,6 +103,7 @@ impl Default for RebalanceState {
 thread_local! {
     static REBALANCE_STATE: RefCell<RebalanceState> = RefCell::new(RebalanceState::default());
     static TIMER_ACTIVE: RefCell<bool> = RefCell::new(false);
+    static REBALANCING_IN_PROGRESS: RefCell<bool> = RefCell::new(false);
 }
 
 // === PUBLIC API ===
@@ -109,8 +124,29 @@ pub fn start_rebalancing_timer() {
     ic_cdk_timers::set_timer_interval(
         std::time::Duration::from_secs(REBALANCE_INTERVAL_SECONDS),
         || {
+            // Check if rebalancing is already in progress
+            let already_running = REBALANCING_IN_PROGRESS.with(|flag| {
+                let is_running = *flag.borrow();
+                if !is_running {
+                    *flag.borrow_mut() = true;
+                }
+                is_running
+            });
+
+            if already_running {
+                ic_cdk::println!("⚠️ Rebalancing already in progress, skipping this cycle");
+                return;
+            }
+
             ic_cdk::spawn(async {
-                match hourly_rebalance().await {
+                let result = hourly_rebalance().await;
+
+                // Clear the in-progress flag
+                REBALANCING_IN_PROGRESS.with(|flag| {
+                    *flag.borrow_mut() = false;
+                });
+
+                match result {
                     Ok(msg) => ic_cdk::println!("✅ Rebalance: {}", msg),
                     Err(e) => ic_cdk::println!("❌ Rebalance failed: {}", e),
                 }
@@ -127,7 +163,28 @@ pub fn start_rebalancing_timer() {
 /// Useful for testing or emergency interventions.
 pub async fn perform_rebalance() -> Result<String> {
     ic_cdk::println!("🔧 Manual rebalance triggered");
-    hourly_rebalance().await
+
+    // Check if rebalancing is already in progress
+    let already_running = REBALANCING_IN_PROGRESS.with(|flag| {
+        let is_running = *flag.borrow();
+        if !is_running {
+            *flag.borrow_mut() = true;
+        }
+        is_running
+    });
+
+    if already_running {
+        return Err(IcpiError::Rebalance(RebalanceError::RebalancingInProgress));
+    }
+
+    let result = hourly_rebalance().await;
+
+    // Clear the in-progress flag
+    REBALANCING_IN_PROGRESS.with(|flag| {
+        *flag.borrow_mut() = false;
+    });
+
+    result
 }
 
 /// Trigger manual rebalance (alias for perform_rebalance)
@@ -215,7 +272,8 @@ pub fn get_rebalancing_action(
     // Find most underweight token (largest positive usd_difference)
     let most_underweight = deviations.iter()
         .filter(|d| d.usd_difference > 0.0) // Needs more tokens
-        .max_by(|a, b| a.usd_difference.partial_cmp(&b.usd_difference).unwrap());
+        .max_by(|a, b| a.usd_difference.partial_cmp(&b.usd_difference)
+            .unwrap_or(std::cmp::Ordering::Equal));
 
     // Check if we can buy
     if ckusdt_usd >= MIN_TRADE_SIZE_USD {
@@ -239,7 +297,8 @@ pub fn get_rebalancing_action(
     // Find most overweight token (largest negative usd_difference)
     let most_overweight = deviations.iter()
         .filter(|d| d.usd_difference < 0.0) // Has excess tokens
-        .min_by(|a, b| a.usd_difference.partial_cmp(&b.usd_difference).unwrap());
+        .min_by(|a, b| a.usd_difference.partial_cmp(&b.usd_difference)
+            .unwrap_or(std::cmp::Ordering::Equal));
 
     if let Some(excess) = most_overweight {
         if excess.usd_difference.abs() > MIN_TRADE_SIZE_USD {
@@ -268,7 +327,7 @@ pub fn get_rebalancing_action(
 /// 2. Execute swap via Zone 4
 /// 3. Log results and update history
 async fn execute_buy_action(token: &TrackedToken, usd_amount: f64) -> Result<String> {
-    let ckusdt_amount = Nat::from((usd_amount * 1_000_000.0) as u64);
+    let ckusdt_amount = Nat::from((usd_amount * 1_000_000.0).round() as u64);
 
     ic_cdk::println!(
         "💰 Buying {} with ${:.2} ({} ckUSDT)",
@@ -330,7 +389,17 @@ async fn execute_sell_action(token: &TrackedToken, usd_value: f64) -> Result<Str
     let token_decimals = token.get_decimals() as u32;
     let decimal_multiplier = 10f64.powi(token_decimals as i32);
     let token_amount_f64 = (usd_value / price) * decimal_multiplier;
-    let token_amount = Nat::from(token_amount_f64 as u64);
+    let token_amount = Nat::from(token_amount_f64.round() as u64);
+
+    // Check if we have sufficient balance
+    let balance = crate::_2_CRITICAL_DATA::token_queries::get_token_balance_uncached(token).await?;
+    if balance < token_amount {
+        return Err(IcpiError::Rebalance(RebalanceError::InsufficientBalance {
+            token: token.to_symbol().to_string(),
+            available: balance.to_string(),
+            required: token_amount.to_string(),
+        }));
+    }
 
     ic_cdk::println!(
         "💸 Selling {} {} (~${:.2}) for ckUSDT (price: ${:.6})",
@@ -381,7 +450,7 @@ async fn execute_sell_action(token: &TrackedToken, usd_value: f64) -> Result<Str
 
 /// Record rebalance result in history
 ///
-/// Keeps last 10 records for audit trail and debugging.
+/// Keeps last MAX_REBALANCE_HISTORY records for audit trail and debugging.
 fn record_rebalance(action: RebalanceAction, success: bool, details: &str) {
     REBALANCE_STATE.with(|state| {
         let mut state = state.borrow_mut();
@@ -394,8 +463,8 @@ fn record_rebalance(action: RebalanceAction, success: bool, details: &str) {
             details: details.to_string(),
         });
 
-        // Keep only last 10 records
-        if state.history.len() > 10 {
+        // Keep only last MAX_REBALANCE_HISTORY records
+        if state.history.len() > MAX_REBALANCE_HISTORY {
             state.history.remove(0);
         }
     });
