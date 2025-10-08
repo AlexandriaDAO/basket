@@ -168,8 +168,20 @@ pub async fn get_portfolio_state_uncached() -> Result<IndexState> {
 
     // Calculate total value
     let total_value_nat = calculate_portfolio_value_atomic().await?;
-    // Handle u128 values properly - convert to f64 safely
-    let total_value_u128 = total_value_nat.0.to_u128().unwrap_or(0);
+    // Handle u128 values properly - convert to f64 safely with validation
+    let total_value_u128 = total_value_nat.0.to_u128()
+        .ok_or_else(|| crate::infrastructure::IcpiError::Other(
+            format!("Total portfolio value {} exceeds u128 maximum", total_value_nat)
+        ))?;
+
+    // Validate value is within f64 precision range (2^53 for exact integer representation)
+    const MAX_SAFE_F64: u128 = 1u128 << 53;  // ~9 quadrillion
+    if total_value_u128 > MAX_SAFE_F64 * 1_000_000 {
+        return Err(crate::infrastructure::IcpiError::Other(
+            format!("Portfolio value {} exceeds safe f64 precision range", total_value_u128)
+        ));
+    }
+
     let total_value_f64 = total_value_u128 as f64 / 1_000_000.0;
 
     // Build current positions using CurrentPosition type
@@ -189,13 +201,17 @@ pub async fn get_portfolio_state_uncached() -> Result<IndexState> {
         };
 
         if let Some(t) = token {
-            // Calculate USD value
+            // Calculate USD value - propagate errors to fail safely
             let usd_value_e6 = if symbol == "ckUSDT" {
                 // ckUSDT is 1:1 with USD
-                balance.0.to_u64().unwrap_or(0)
+                balance.0.to_u64().ok_or_else(|| {
+                    crate::infrastructure::IcpiError::Other(
+                        format!("ckUSDT balance {} exceeds u64 maximum", balance)
+                    )
+                })?
             } else {
-                // Get USD value from token pricing
-                get_token_usd_value(symbol, balance).await.unwrap_or(0)
+                // Get USD value from token pricing - propagate errors instead of silently failing
+                get_token_usd_value(symbol, balance).await?
             };
 
             let usd_value = usd_value_e6 as f64 / 1_000_000.0;
