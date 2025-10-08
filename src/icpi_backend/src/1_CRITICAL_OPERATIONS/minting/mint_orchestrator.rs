@@ -129,7 +129,7 @@ pub async fn complete_mint(caller: Principal, mint_id: String) -> Result<Nat> {
     // Step 3: NOW collect deposit (after TVL snapshot taken)
     update_mint_status(&mint_id, MintStatus::CollectingDeposit)?;
 
-    match collect_deposit(caller, pending_mint.amount.clone(), format!("ICPI mint {}", mint_id)).await {
+    match collect_deposit(caller, pending_mint.amount.clone(), "ICPI mint".to_string()).await {
         Ok(_) => {
             ic_cdk::println!("Deposit collected for mint {}", mint_id);
         }
