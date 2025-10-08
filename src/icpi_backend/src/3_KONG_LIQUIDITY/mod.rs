@@ -1,24 +1,38 @@
-//! # Kong Liquidity Integration - PHASE 2 (NOT IN ALPHA v1)
+//! # Kong Liquidity Integration
 //!
-//! ⚠️  **STATUS: INTENTIONALLY STUBBED FOR ALPHA v1 DEPLOYMENT**
-//!
-//! ## Purpose
 //! Query Kong Locker and Kongswap for:
 //! - Locked liquidity amounts for TVL calculation
 //! - Real-time token prices from liquidity pools
-//! - Pool liquidity depth for trade sizing
+//! - Target allocation percentages based on locked TVL
 //!
-//! ## Alpha v1 Approach
-//! Uses conservative hardcoded token prices to prevent over-minting:
-//! - ALEX: $0.50
-//! - ZERO: $0.10
-//! - KONG: $0.05
-//! - BOB: $0.01
+//! ## Architecture
 //!
-//! See: `src/2_CRITICAL_DATA/portfolio_value/mod.rs:56-86`
+//! ### locker/
+//! Queries kong_locker backend for list of all lock canisters.
+//! Each user can have one lock canister that holds their LP tokens.
 //!
-//! ## Phase 2 Implementation
-//! Will implement dynamic price queries with fallback to conservative defaults.
+//! ### pools/
+//! Queries Kongswap for token prices using swap_amounts endpoint.
+//! Returns how much ckUSDT you'd receive for 1 token.
+//!
+//! ### tvl/
+//! Calculates total value locked across all kong_locker positions.
+//! Queries each lock canister's balances from Kongswap and sums by token.
+//!
+//! ## Usage Example
+//!
+//! ```rust,no_run
+//! use crate::_3_KONG_LIQUIDITY;
+//!
+//! // Get Kong Locker TVL distribution
+//! let tvl = _3_KONG_LIQUIDITY::tvl::calculate_kong_locker_tvl().await?;
+//! // Returns: [(ALEX, $22500), (ZERO, $640), (KONG, $48), (BOB, $2)]
+//!
+//! // Get current token price
+//! let alex_price = _3_KONG_LIQUIDITY::pools::get_token_price_in_usdt(&TrackedToken::ALEX).await?;
+//! // Returns: 0.0012 (meaning 1 ALEX = 0.0012 ckUSDT)
+//! ```
 
-// TODO: Implement in Phase 2
-
+pub mod locker;
+pub mod pools;
+pub mod tvl;
