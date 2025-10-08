@@ -6,6 +6,258 @@
 
 ---
 
+## 🤖 AGENT EXECUTION INSTRUCTIONS - READ THIS FIRST
+
+### Your Mission
+
+You are a **Rust security engineer** executing a comprehensive remediation plan. This document contains both audit findings and detailed implementation steps. Your job is to **systematically implement all fixes, test them, deploy them, and verify they work on mainnet.**
+
+### Project Context
+
+**What:** ICPI (Internet Computer Portfolio Index) - A basket token representing proportional holdings of ALEX, ZERO, KONG, BOB tokens locked in Kongswap liquidity pools.
+
+**How it works:**
+- Users deposit ckUSDT → receive ICPI tokens proportional to TVL
+- Users burn ICPI → receive proportional share of all basket tokens
+- Hourly rebalancing maintains 25% allocation to each token
+
+**Three Canisters (Internet Computer Mainnet):**
+1. **ICPI Token Ledger** (`l6lep-niaaa-aaaap-qqeda-cai`) - Standard ICRC-1 token, stores balances
+2. **Backend** (`ev6xm-haaaa-aaaap-qqcza-cai`) - **YOUR TARGET** - Minting, burning, rebalancing logic (has the bugs)
+3. **Frontend** (`qhlmp-5aaaa-aaaam-qd4jq-cai`) - React UI (not your concern)
+
+**Critical Security Note:** The backend IS the minting/burning account. Bugs = direct fund loss.
+
+### Your Environment
+
+**Location:** `/home/theseus/alexandria/basket/`
+**Network:** Internet Computer Mainnet (all development happens on mainnet - this is experimental)
+**Deployment:** `./deploy.sh --network ic` (run after ANY backend changes)
+
+### Execution Strategy
+
+#### Step 0: Initial Assessment (REQUIRED FIRST STEP)
+
+Before starting Phase 1, understand the current state:
+
+```bash
+# 1. Survey the codebase
+cd /home/theseus/alexandria/basket
+find src/icpi_backend/src -name "*.rs" | head -20
+
+# 2. Check what exists vs. what plan expects
+ls -la src/icpi_backend/src/2_CRITICAL_DATA/portfolio_value/
+ls -la src/icpi_backend/src/3_KONG_LIQUIDITY/price_oracle/ 2>/dev/null || echo "Price oracle doesn't exist yet"
+
+# 3. Run existing tests
+cargo test --package icpi_backend 2>&1 | head -50
+
+# 4. Check current mainnet state
+dfx canister --network ic call ev6xm-haaaa-aaaap-qqcza-cai get_portfolio_value
+dfx canister --network ic call l6lep-niaaa-aaaap-qqeda-cai icrc1_total_supply '()'
+```
+
+**Create a TodoList with your findings:**
+- [ ] Assessed current codebase structure
+- [ ] Identified which fixes are already done
+- [ ] Documented current mainnet state
+- [ ] Ready to begin Phase 1
+
+#### Step 1-5: Execute Phases Sequentially
+
+Work through **Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5** in strict order.
+
+**For each phase:**
+
+1. **Read the phase requirements carefully** - Understand what needs to be built
+2. **Discover types empirically BEFORE implementing** - Use `dfx canister call` to test external APIs
+3. **Implement the fix** - Write the Rust code as specified
+4. **Write tests** - Add unit tests inline, integration tests in scripts
+5. **Deploy** - Run `./deploy.sh --network ic` to deploy changes
+6. **Test on mainnet** - Verify the fix works with real canister calls
+7. **Document** - Add code comments explaining your changes
+8. **Update TodoList** - Mark tasks complete as you go
+9. **Report progress** - Summarize what you did after each major milestone
+
+#### Step 6: Final Verification
+
+After Phase 5:
+- Run full integration test suite
+- Verify all checklist items
+- Mark plan complete
+
+### Critical Rules
+
+**ALWAYS:**
+- ✅ Test external API types with `dfx canister call` BEFORE implementing
+- ✅ Deploy after EVERY backend code change (changes invisible until deployed)
+- ✅ Use TodoWrite to track progress (helps you and me understand status)
+- ✅ Read existing code before modifying (understand patterns first)
+- ✅ Add unit tests for new functions
+- ✅ Document your reasoning in code comments
+
+**NEVER:**
+- ❌ Assume types - discover them empirically first
+- ❌ Skip testing - this handles real money
+- ❌ Rush - methodical execution prevents bugs
+- ❌ Modify frontend (not in scope)
+- ❌ Change unrelated code (stay focused on the plan)
+
+### How to Discover External API Types
+
+Many fixes require calling external canisters (Kongswap, ICRC ledgers). **Always discover types first:**
+
+```bash
+# Method 1: Get candid interface (if available)
+dfx canister --network ic call <canister-id> __get_candid_interface_tmp_hack
+
+# Method 2: Try test calls and observe errors
+dfx canister --network ic call 2ipq2-uqaaa-aaaar-qailq-cai user_balances '(principal "ev6xm-haaaa-aaaap-qqcza-cai")'
+# ^ Read error messages carefully - they often reveal expected types
+
+# Method 3: Check reference codebases
+# kong-swap-reference/ and kong-locker-reference/ have full source code
+
+# Method 4: Minimal test
+dfx canister --network ic call <canister-id> <method> '()'
+# Start with empty args, work up to correct types
+```
+
+**Example workflow for C-1 (price oracle):**
+```bash
+# Step 1: Find out what methods Kongswap has
+rg "pub fn.*pool" kong-swap-reference/ | head -10
+
+# Step 2: Test calling a pool query
+dfx canister --network ic call 2ipq2-uqaaa-aaaar-qailq-cai user_balances \
+  '(principal "ev6xm-haaaa-aaaap-qqcza-cai")'
+
+# Step 3: Observe the return type structure
+# Step 4: Define Rust structs matching that structure
+# Step 5: Implement the function
+# Step 6: Deploy and test
+```
+
+### What to Do When...
+
+**...you discover a file doesn't exist?**
+→ Create it following the directory structure shown in the plan. Use existing modules as templates.
+
+**...types don't match what the plan shows?**
+→ **This is expected!** The plan uses pseudocode. Discover real types empirically, document them, then implement.
+
+**...a test fails?**
+→ Debug it. Don't proceed to next phase until current phase tests pass. Ask for help if stuck.
+
+**...you find a new security issue?**
+→ Document it. If critical (fund loss), fix immediately. Otherwise, add to plan and continue.
+
+**...you encounter a blocker?**
+→ Document the blocker, explain what you tried, and ask for guidance. Don't spend >30 minutes stuck.
+
+**...you need to make a judgment call?**
+→ Use engineering judgment, document your reasoning in code comments, and proceed. Report decision in your summary.
+
+**...the plan is ambiguous?**
+→ Look for similar patterns in existing code, follow those conventions. Document your interpretation.
+
+### Success Criteria
+
+**This plan is complete when:**
+- [ ] All Phase 1-5 tasks implemented
+- [ ] All unit tests pass (`cargo test --package icpi_backend`)
+- [ ] Integration tests pass (`./scripts/integration_tests.sh`)
+- [ ] Manual testing checklist complete (test key operations on mainnet)
+- [ ] Final deployment successful
+- [ ] Sign-off checklist marked complete
+
+### Progress Tracking
+
+**Use TodoWrite extensively:**
+
+```
+Initial todos:
+- [ ] Step 0: Assess current state
+- [ ] Phase 1: C-1 - Implement live price feeds
+- [ ] Phase 1: H-3 - Fix minting formula
+- [ ] Phase 1: H-2 - Consolidate canister IDs
+- [ ] Phase 2: H-1 - Add admin controls
+- [ ] Phase 3: M-4, M-5, M-1, M-2, M-3 fixes
+- [ ] Phase 4: Write comprehensive tests
+- [ ] Phase 5: Production preparation
+```
+
+Mark items `in_progress` when starting, `completed` when done. Add sub-tasks as needed.
+
+### Communication
+
+**Report after each phase:**
+- What you implemented
+- What tests you added
+- What you deployed
+- Any issues encountered
+- Any decisions you made
+- Status of next phase
+
+**Example report:**
+```
+✅ Phase 1 Complete: Live Price Feeds
+
+Implemented:
+- Created src/icpi_backend/src/3_KONG_LIQUIDITY/price_oracle/mod.rs
+- Discovered Kongswap API returns user_balances structure (not pool reserves)
+- Implemented price calculation from reserve ratios
+- Added price validation (min/max bounds)
+- Added 5-minute cache with staleness detection
+
+Tests:
+- Added unit tests for price_from_reserves calculation
+- Tested live queries to Kongswap on mainnet
+- Verified fallback prices work when query fails
+
+Deployed:
+- ./deploy.sh --network ic completed successfully
+- Tested get_token_price('ALEX') returns reasonable value ($0.47)
+
+Decisions:
+- Used user_balances API instead of pool query (simpler, same data)
+- Set min/max bounds conservatively (can adjust based on observed prices)
+
+Next: Phase 1 - H-3 (Fix minting formula)
+```
+
+### Important Context
+
+**This project is unique:**
+- All development/testing on mainnet (no local replica)
+- Small amounts at risk ($100-1000 total)
+- Experimental approach accepted by deployer
+- Changes require deployment to be visible
+
+**Backend security responsibility:**
+- Backend IS the minting account (transfers from backend = newly created tokens)
+- Backend IS the burning account (transfers to backend = destroyed tokens)
+- Bugs in minting/burning directly cause fund loss or inflation
+- Rebalancing handles custody of basket tokens
+
+**Code style to follow:**
+- Extensive logging with ic_cdk::println!
+- Result types everywhere (no panics)
+- Clear error messages with context
+- Security comments at critical junctions
+
+### Ready to Begin?
+
+1. Review the Table of Contents below
+2. Start with **Step 0: Initial Assessment**
+3. Then proceed to **Phase 1: Critical Fixes**
+4. Use TodoWrite to track your progress
+5. Report back after each phase
+
+**Now scroll down and begin execution. Good luck!** 🚀
+
+---
+
 ## Table of Contents
 
 1. [Executive Summary](#executive-summary)

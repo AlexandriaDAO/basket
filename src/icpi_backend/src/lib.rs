@@ -156,14 +156,14 @@ async fn get_tvl_summary() -> Result<types::portfolio::TvlSummary> {
     let tokens: Vec<types::portfolio::TokenTvl> = tvl_data.iter().map(|(token, usd_value)| {
         types::portfolio::TokenTvl {
             token: token.clone(),
-            locked_value_usd: *usd_value,
+            tvl_usd: *usd_value,  // Fixed field name to match .did file
             percentage: if total_tvl > 0.0 { (usd_value / total_tvl) * 100.0 } else { 0.0 },
         }
     }).collect();
 
     Ok(types::portfolio::TvlSummary {
         total_tvl_usd: total_tvl,
-        token_tvls: tokens,
+        tokens: tokens,  // Fixed field name to match .did file
         timestamp: ic_cdk::api::time(),
     })
 }
@@ -173,29 +173,21 @@ async fn get_tvl_summary() -> Result<types::portfolio::TvlSummary> {
 fn get_token_metadata() -> Result<Vec<types::tokens::TokenMetadata>> {
     use types::TrackedToken;
 
-    let tokens: Vec<types::tokens::TokenMetadata> = vec![
-        types::tokens::TokenMetadata {
-            symbol: "ALEX".to_string(),
-            canister_id: Principal::from_text("ysy5f-2qaaa-aaaap-qkmmq-cai").unwrap(),
-            decimals: 8,
-        },
-        types::tokens::TokenMetadata {
-            symbol: "ZERO".to_string(),
-            canister_id: Principal::from_text("rffwt-piaaa-aaaaa-qaacq-cai").unwrap(),
-            decimals: 8,
-        },
-        types::tokens::TokenMetadata {
-            symbol: "KONG".to_string(),
-            canister_id: Principal::from_text("73wnl-eqaaa-aaaal-qddaa-cai").unwrap(),
-            decimals: 8,
-        },
-        types::tokens::TokenMetadata {
-            symbol: "BOB".to_string(),
-            canister_id: Principal::from_text("7pail-xaaaa-aaaas-aabmq-cai").unwrap(),
-            decimals: 8,
-        },
-    ];
-    Ok(tokens)
+    // Use TrackedToken methods to avoid hardcoded canister IDs
+    let tokens: Result<Vec<types::tokens::TokenMetadata>> = TrackedToken::all()
+        .iter()
+        .map(|token| {
+            let canister_id = token.get_canister_id()
+                .map_err(|e| IcpiError::Other(e))?;
+            Ok(types::tokens::TokenMetadata {
+                symbol: token.to_symbol().to_string(),
+                canister_id,
+                decimals: token.get_decimals(),
+            })
+        })
+        .collect();
+
+    tokens
 }
 
 #[query]
@@ -257,15 +249,21 @@ fn icrc1_decimals() -> u8 {
 #[update]
 #[candid_method(update)]
 async fn icrc1_total_supply() -> Nat {
-    _2_CRITICAL_DATA::supply_tracker::get_icpi_supply_uncached().await
-        .unwrap_or(Nat::from(0u64))
+    match _2_CRITICAL_DATA::supply_tracker::get_icpi_supply_uncached().await {
+        Ok(supply) => supply,
+        Err(e) => {
+            ic_cdk::println!("⚠️ Failed to get ICPI total supply: {}", e);
+            Nat::from(0u64)
+        }
+    }
 }
 
 #[update]
 #[candid_method(update)]
 async fn icrc1_balance_of(account: types::icrc::Account) -> Nat {
     // Query ICPI token ledger for balance
-    let icpi_canister_id = Principal::from_text("l6lep-niaaa-aaaap-qqeda-cai").unwrap();
+    let icpi_canister_id = Principal::from_text(types::tokens::ICPI_CANISTER_ID)
+        .expect("ICPI_CANISTER_ID constant is valid");
 
     match ic_cdk::call::<(types::icrc::Account,), (Nat,)>(
         icpi_canister_id,
@@ -273,7 +271,10 @@ async fn icrc1_balance_of(account: types::icrc::Account) -> Nat {
         (account,)
     ).await {
         Ok((balance,)) => balance,
-        Err(_) => Nat::from(0u64),
+        Err(e) => {
+            ic_cdk::println!("⚠️ Failed to query ICPI balance: {:?}", e);
+            Nat::from(0u64)
+        }
     }
 }
 

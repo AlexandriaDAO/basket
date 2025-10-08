@@ -1,28 +1,51 @@
 # Frontend Refactor Status
 
-## 🔴 REFACTOR BLOCKED - ROLLED BACK
+## ✅ BACKEND FIXES COMPLETE - READY FOR PR REVIEW
 
-**Status**: ic-use-internet-identity library incompatible, reverted to working version
-**URL**: https://qhlmp-5aaaa-aaaam-qd4jq-cai.icp0.io (original version restored)
+**Status**: Backend API methods fixed, frontend working, ready for PR iteration
+**URL**: https://qhlmp-5aaaa-aaaam-qd4jq-cai.icp0.io
 **Branch**: `fix/frontend-loading-missing-api-methods`
+**PR**: https://github.com/AlexandriaDAO/basket/pull/7
 **Repository**: AlexandriaDAO/basket
 **Working Directory**: `/home/theseus/alexandria/basket`
 
-**CRITICAL ISSUE**: The ic-use-internet-identity library causes runtime error:
-```
-TypeError: e.getTimeDiffMsecs is not a function
-```
+## What's Fixed and Working
 
-Login button was non-functional. Rolled back to original working version.
+### ✅ Backend API Methods (DEPLOYED AND WORKING)
+Fixed root cause of blank skeleton screens:
+- Added `get_index_state_cached` method (was in .did but not lib.rs)
+- Added 15+ other missing API methods
+- Fixed .did file consistency
+- Frontend now loads properly (no blank screens)
 
-## What Happened
+### 🔴 Actor Refactor Attempt (ROLLED BACK)
+Attempted ic-use-actor pattern from alex_frontend:
+- ✅ Code refactored (all 15 hooks converted)
+- ✅ Build succeeded
+- ❌ Runtime error: `TypeError: e.getTimeDiffMsecs is not a function`
+- ❌ Login completely broken
+- ✅ Rolled back to working version
 
-Attempted to refactor following alex_frontend pattern but hit critical blocker:
-- ✅ Refactoring complete (all hooks converted)
-- ✅ Build succeeds
-- ❌ **Runtime error on load** - `getTimeDiffMsecs is not a function`
-- ❌ Login broken, page crashes
-- ✅ **Rolled back** - original version working again
+**Preserved for future**: Refactored code in `*-broken.ts` files
+
+### Current Behavior
+- ✅ Site loads and works
+- ✅ Login functional
+- ✅ All features working
+- ⚠️ Still has 20-second delays on data load (acceptable for now)
+- ⚠️ Still has missing allocations on first load (refreshes fix it)
+
+## Next Task: Iterate on PR #7
+
+**PR URL**: https://github.com/AlexandriaDAO/basket/pull/7
+
+Claude Code has likely left review comments. A fresh agent should:
+1. Read PR review feedback
+2. Address any P0 issues raised
+3. Build and test fixes
+4. Deploy to mainnet
+5. Push commits to this branch
+6. Wait for next review iteration
 
 ---
 
