@@ -305,39 +305,14 @@ This document combines the security audit findings and remediation plan for the 
 
 ## Audit Findings Summary
 
-### Implementation Status (as of October 8, 2025)
-
-**✅ COMPLETED:**
-- **Phase 1** (PR #8 - MERGED): C-1, H-3, H-2
-  - Live Kongswap price feeds via `swap_amounts` API
-  - Minting formula decimal handling fixed
-  - Canister IDs consolidated to single source
-- **Phase 2** (PR #9 - UNDER REVIEW): H-1
-  - Admin controls with emergency pause
-  - Manual operation triggers
-  - Admin action logging
-- **Phase 3** (PR #12 - UNDER REVIEW): M-1, M-2, M-3, M-5
-  - Snapshot timing documentation
-  - Fee approval checking before burn
-  - Maximum burn limit (10% of supply)
-  - Atomic supply/TVL snapshots
-
-**🟡 REMAINING:**
-- **M-4**: Concurrent operation guards (deferred)
-- **Phase 4**: Comprehensive test suite
-- **Phase 5**: Production preparation
-- **Low-Severity**: 10+ issues
-
-**Current Security Rating:** 7.5/10 (up from 6.5/10)
-
 ### Findings by Severity
 
-| Severity | Count | Fixed | Status |
-|----------|-------|-------|--------|
-| 🔴 Critical | 1 | ✅ 1 | PR #8 Merged |
-| 🟠 High | 3 | ✅ 3 | PR #8, #9 |
-| 🟡 Medium | 5 | ✅ 4 | PR #12 (M-4 deferred) |
-| ⚪ Low | 10+ | 0 | Not started |
+| Severity | Count | Status |
+|----------|-------|--------|
+| 🔴 Critical | 1 | Not Fixed |
+| 🟠 High | 3 | Not Fixed |
+| 🟡 Medium | 5 | Not Fixed |
+| ⚪ Low | 10+ | Not Fixed |
 
 ### Critical (C-1): Hardcoded Token Prices
 
@@ -3155,227 +3130,88 @@ This comprehensive plan covers all audit findings, remediation steps, testing re
 
 ## REMAINING WORK (Updated October 8, 2025)
 
-### Phase 3 Completion: M-4 (Deferred)
+### Current Status Summary
 
-**M-4: Prevent Concurrent Critical Operations**
-- **Priority:** 🟡 MEDIUM  
-- **Effort:** 1 day
-- **Status:** Deferred to Phase 4
-- **Reason:** More complex than other medium fixes, better suited for comprehensive testing phase
+**✅ Completed (Deployed to Mainnet):**
+- Phase 1 (PR #8 - MERGED): C-1, H-3, H-2
+- Phase 2 (PR #9 - UNDER REVIEW): H-1  
+- Phase 3 (PR #12 - UNDER REVIEW): M-1, M-2, M-3, M-5
 
-**Implementation Requirements:**
+**🟡 Remaining (4-6 weeks):**
+- M-4: Concurrent operation guards
+- Phase 4: Comprehensive test suite
+- Phase 5: Production preparation
+- External security audit
 
-1. **Global Operation State** (`6_INFRASTRUCTURE/reentrancy.rs`):
-```rust
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum GlobalOperation {
-    Idle,
-    Minting,
-    Burning,
-    Rebalancing,
-}
-
-thread_local! {
-    static CURRENT_GLOBAL_OPERATION: RefCell<GlobalOperation> = RefCell::new(GlobalOperation::Idle);
-    static LAST_OPERATION_END_TIME: RefCell<u64> = RefCell::new(0);
-}
-
-const GRACE_PERIOD_NANOS: u64 = 60_000_000_000; // 60 seconds
-
-pub fn try_start_global_operation(op: GlobalOperation) -> Result<()> {
-    // Check grace period
-    // Check operation conflicts (rebalancing blocks mints/burns)
-    // Allow concurrent mints/burns (per-user guards still apply)
-}
-
-pub fn end_global_operation(op: GlobalOperation) { ... }
-```
-
-2. **Apply to Rebalancing** (`1_CRITICAL_OPERATIONS/rebalancing/mod.rs`):
-```rust
-pub fn start_rebalancing_timer() {
-    ic_cdk_timers::set_timer_interval(..., || {
-        match try_start_global_operation(GlobalOperation::Rebalancing) {
-            Ok(()) => {
-                ic_cdk::spawn(async {
-                    let result = perform_rebalance().await;
-                    end_global_operation(GlobalOperation::Rebalancing);
-                    // ...
-                });
-            },
-            Err(e) => {
-                ic_cdk::println!("⏭️ Skipping rebalance cycle: {}", e);
-            }
-        }
-    });
-}
-```
-
-3. **Testing:**
-- Verify rebalancing skips cycle if mint/burn in grace period
-- Verify multiple users can mint simultaneously  
-- Verify grace period prevents rapid operation switching
+**Current Security Rating:** 7.5/10 → Target: 9.0/10
 
 ---
 
-### Phase 4: Comprehensive Test Suite (Not Started)
+### M-4: Concurrent Operation Guards (1 day)
 
-**Priority:** HIGH  
-**Effort:** 1-2 weeks  
-**Status:** Not started
+**Status:** Deferred to Phase 4  
+**Reason:** More complex than other M-fixes, better with comprehensive testing
 
-**Required Tests:**
-
-1. **Unit Tests** (in-code `#[cfg(test)]` modules):
-   - Math module overflow/underflow tests
-   - Decimal conversion accuracy tests
-   - Validation function tests
-   - Reentrancy guard tests
-   - Admin authorization tests
-
-2. **Integration Tests** (`scripts/integration_tests.sh`):
-   - Full mint flow (approve → initiate → complete → verify)
-   - Full burn flow (approve → burn → verify redemptions)
-   - Admin pause during operations
-   - Price oracle failures and fallbacks
-   - Maximum burn limit enforcement
-   - Fee approval checking
-
-3. **Stress Tests**:
-   - Concurrent mints from 10+ users
-   - Large burns (approaching 10% limit)
-   - Rebalancing during high activity
-   - Cache expiration and refresh
-
-4. **Edge Cases**:
-   - Zero supply minting
-   - Zero TVL scenarios
-   - Token price anomalies
-   - Network failures mid-operation
-
-**Success Criteria:**
-- 90%+ code coverage
-- All tests pass on mainnet
-- No panics or unwraps in critical paths
-- Performance benchmarks met (<5s for operations)
+**Implementation:**
+- Global operation state tracking (`GlobalOperation` enum)
+- Grace period between operations (60 seconds)
+- Rebalancing skips cycle if mint/burn active
+- Multiple users can still mint/burn simultaneously
 
 ---
 
-### Phase 5: Production Preparation (Not Started)
+### Phase 4: Comprehensive Testing (1-2 weeks)
 
-**Priority:** HIGH  
-**Effort:** 1 week  
-**Status:** Not started
+**Unit Tests:**
+- Math overflow/underflow protection
+- Decimal conversion accuracy
+- Validation logic
+- Reentrancy guards
 
-**Required Work:**
+**Integration Tests (mainnet):**
+- Full mint/burn flows
+- Admin pause during operations
+- Price oracle fallbacks
+- Maximum burn limits
 
-1. **Monitoring & Alerting**:
-   - Create monitoring dashboard (track TVL, supply, operations)
-   - Set up alerts for anomalies (price spikes, failed operations)
-   - Log aggregation and analysis
-
-2. **Documentation**:
-   - User guide for minting/burning
-   - Admin runbook for emergencies
-   - Deployment procedures
-   - Incident response plan
-
-3. **Audit Preparation**:
-   - External security audit (2-4 weeks, $15-30K)
-   - Penetration testing
-   - Economic analysis and modeling
-
-4. **Deployment Checklist**:
-   - Verify all PRs merged (Phase 1-4)
-   - Run full integration test suite
-   - Backup canister state
-   - Test emergency pause procedure
-   - Verify admin principals correct
-   - Deploy to mainnet with announcement
-
-5. **Post-Launch**:
-   - Monitoring 24/7 for first week
-   - Gradual increase in deposit limits
-   - Community feedback collection
-   - Performance optimization based on usage
+**Stress Tests:**
+- 10+ concurrent mints
+- Large burns (near 10% limit)
+- Rebalancing during high activity
 
 ---
 
-### Low-Severity Issues (10+) - Not Addressed
+### Phase 5: Production Preparation (1 week)
 
-**Priority:** LOW  
-**Status:** Documented but not blocking production
+**Monitoring:**
+- Dashboard for TVL, supply, operations
+- Alerts for anomalies
+- Log aggregation
 
-**Issues:**
+**Documentation:**
+- User guides
+- Admin runbook
+- Incident response
 
-1. **Thread-local state lost on upgrade** - Some acceptable (caches), some not (critical state)
-   - **Impact:** Minimal, caches rebuild
-   - **Fix:** Stable storage for persistent data (Phase 5)
-
-2. **No minimum TVL validation for subsequent mints** - Could mint with tiny TVL
-   - **Impact:** Low, market forces prevent this
-   - **Fix:** Add MIN_TVL_FOR_MINT constant (Phase 4)
-
-3. **Missing circuit breaker for repeated rebalance failures** - Could loop forever
-   - **Impact:** Low, manual intervention available
-   - **Fix:** Add failure counter and auto-pause (Phase 4)
-
-4. **Inconsistent error message formats** - Some detailed, some generic
-   - **Impact:** Developer experience
-   - **Fix:** Standardize error formatting (Phase 5)
-
-5. **Rate limiting cleanup could grow large** - No garbage collection
-   - **Impact:** Memory growth over months
-   - **Fix:** Periodic cleanup task (Phase 5)
-
-6. **Missing comprehensive decimal handling documentation** - Hard to verify correctness
-   - **Impact:** Maintenance difficulty
-   - **Fix:** Document all decimal conversions (Phase 4)
-
-7. **Hardcoded principals with `.unwrap()` in query paths** - Could panic if invalid
-   - **Impact:** Low, principals are constant
-   - **Fix:** Validate at startup, not per-query (Phase 4)
-
-8. **No version tracking for upgrades** - Hard to debug issues
-   - **Impact:** Operations difficulty
-   - **Fix:** Add VERSION constant (Phase 5)
-
-9. **Parallel token queries not optimized** - Sequential in some places
-   - **Impact:** Performance (minor)
-   - **Fix:** Use `futures::join_all` everywhere (Phase 4)
-
-10. **No metrics/telemetry** - Can't optimize without data
-    - **Impact:** Performance tuning difficulty
-    - **Fix:** Add metrics module (Phase 5)
+**Audit:**
+- External security review (2-4 weeks, $15-30K)
+- Economic modeling
+- Penetration testing
 
 ---
 
-### Timeline (Revised)
+### Low-Severity Issues (Documented, Not Blocking)
 
-| Phase | Status | Duration | PRs | 
-|-------|--------|----------|-----|
-| Phase 1 (C-1, H-3, H-2) | ✅ Complete | 2 days | #8 Merged |
-| Phase 2 (H-1) | ✅ Complete | 1 day | #9 Review |
-| Phase 3 (M-1,2,3,5) | ✅ Complete | 1 day | #12 Review |
-| **M-4** | 🟡 TODO | 1 day | Phase 4 |
-| **Phase 4 (Tests)** | 🔴 TODO | 1-2 weeks | TBD |
-| **Phase 5 (Prod)** | 🔴 TODO | 1 week | TBD |
-| **External Audit** | 🔴 TODO | 2-4 weeks | N/A |
-
-**Estimated Completion:** 4-6 weeks from now (early November 2025)
-
----
-
-### Next Steps
-
-1. **Merge Phase 2 & 3 PRs** (#9, #12) - Create checkpoint
-2. **Implement M-4** - Concurrent operation guards (1 day)
-3. **Build Phase 4 Test Suite** - Comprehensive testing (1-2 weeks)
-4. **Production Prep** - Monitoring, docs, audit (1 week)
-5. **External Audit** - Security review (2-4 weeks)
-6. **Launch** - Gradual rollout with monitoring
+- Thread-local state on upgrade
+- Minimum TVL validation
+- Circuit breaker for rebalancing
+- Error message standardization
+- Rate limiting cleanup
+- Decimal documentation
+- Version tracking
+- Metrics/telemetry
 
 ---
 
 **Last Updated:** October 8, 2025  
-**Security Rating:** 7.5/10 (target: 9.0/10 after all phases)
+**Next Milestone:** Merge PRs #9 and #12, then begin Phase 4
