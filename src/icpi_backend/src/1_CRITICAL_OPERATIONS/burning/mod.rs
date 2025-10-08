@@ -18,6 +18,18 @@ pub struct BurnResult {
 }
 
 // Main burn orchestration function
+//
+// BURN FLOW (ICRC-2):
+// 1. User calls icrc2_approve on ICPI ledger to approve backend for burn amount
+// 2. User calls this burn_icpi function
+// 3. Backend validates request and checks user has sufficient balance
+// 4. Backend collects ckUSDT fee via ICRC-2 transfer_from
+// 5. Backend pulls ICPI from user via ICRC-2 transfer_from (atomically burns it)
+// 6. Backend calculates proportional redemptions based on current portfolio
+// 7. Backend distributes redemption tokens to user
+//
+// SECURITY: ICRC-2 prevents race conditions because each burn atomically pulls
+// from the specific user's approved tokens, not from a shared pool
 pub async fn burn_icpi(caller: Principal, amount: Nat) -> Result<BurnResult> {
     // Acquire reentrancy guard - prevents concurrent burns by same user
     let _guard = crate::infrastructure::BurnGuard::acquire(caller)?;
@@ -76,6 +88,8 @@ pub async fn burn_icpi(caller: Principal, amount: Nat) -> Result<BurnResult> {
 
     // CRITICAL: Transfer ICPI from user to backend (which automatically burns it)
     // Uses ICRC-2 transfer_from so user keeps custody until burn confirmed
+    // IMPORTANT: User must have called icrc2_approve on ICPI ledger first to approve backend
+    // Backend is the burning account - tokens transferred to it are automatically burned
     let icpi_canister = Principal::from_text(crate::infrastructure::constants::ICPI_CANISTER_ID)
         .map_err(|e| IcpiError::Other(format!("Invalid ICPI principal: {}", e)))?;
 
@@ -107,6 +121,8 @@ pub async fn burn_icpi(caller: Principal, amount: Nat) -> Result<BurnResult> {
             ic_cdk::println!("✅ ICPI transferred to burning account at block {} via ICRC-2", block);
         }
         Ok((Err(TransferFromError::InsufficientAllowance { allowance }),)) => {
+            ic_cdk::println!("⚠️ Insufficient ICPI approval: required {}, approved {}", amount, allowance);
+            ic_cdk::println!("User must call icrc2_approve on ICPI ledger to approve backend first");
             return Err(IcpiError::Burn(crate::infrastructure::BurnError::InsufficientApproval {
                 required: amount.to_string(),
                 approved: allowance.to_string(),
