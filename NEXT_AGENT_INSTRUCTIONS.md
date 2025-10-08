@@ -1,233 +1,290 @@
 # Instructions for Next Agent
 
-## Your Task
+## 🔴 CRITICAL: Previous Fix Failed
 
-Iterate on PR #7 until approved, following the autonomous PR orchestrator methodology.
+**PR #7 was merged but the frontend still doesn't work.** User reports:
+- Skeleton screens after hard refresh
+- No wallet balances showing
+- No portfolio allocations
+- Same problem as before
 
-**PR URL**: https://github.com/AlexandriaDAO/basket/pull/7
-**Branch**: `fix/frontend-loading-missing-api-methods`
+## Your ACTUAL Task
+
+**Fix the frontend loading issue** by addressing the actor initialization race condition.
+
+**Primary Document**: Read `FRONTEND_LOADING_FAILURE_ANALYSIS.md` first - it contains:
+- Complete diagnosis of the actor initialization race condition
+- 4 fix approaches with pros/cons
+- Proper verification steps (test in BROWSER, not with dfx)
+- Success criteria: Wallet balances visible in <5 seconds
+
 **Working Directory**: `/home/theseus/alexandria/basket`
 **Network**: Always mainnet (`--network ic`)
+**Branch**: Create new branch: `fix/frontend-actor-race-condition`
 
 ---
+
+## Quick Start
+
+1. **Read FRONTEND_LOADING_FAILURE_ANALYSIS.md** (entire document)
+2. **Reproduce the issue** in browser at https://qhlmp-5aaaa-aaaam-qd4jq-cai.icp0.io
+3. **Choose a fix approach** (Option 1 recommended)
+4. **Implement the fix**
+5. **Verify in browser** (not with dfx commands)
+6. **Success criteria**: Wallet balances visible in <5 seconds
 
 ## Context
 
 ### What's Been Done
-1. ✅ Fixed blank skeleton screen issue (backend missing API methods)
-2. ✅ Added `get_index_state_cached` and 15+ missing endpoints
-3. ✅ Deployed to mainnet and working
-4. ✅ Attempted ic-use-actor refactor (failed, rolled back)
-5. ⏳ **PR #7 awaiting review feedback**
+1. ✅ Fixed backend type mismatches (didn't help frontend)
+2. ✅ Removed hardcoded canister IDs (didn't help frontend)
+3. ✅ Added error logging (didn't help frontend)
+4. ❌ **Merged PR #7** thinking it was fixed
+5. 🔴 **Frontend still broken** - actor initialization race condition
 
 ### Current State
-- Site is functional: https://qhlmp-5aaaa-aaaam-qd4jq-cai.icp0.io
-- Backend deployed with all API methods
-- Frontend using original (working) code
-- Some performance issues remain (20s delays, missing data on first load)
-
-### Branch Status
-```bash
-git branch
-# * fix/frontend-loading-missing-api-methods
-
-git log --oneline -5
-# ba5987c - Docs: Document ic-use-internet-identity failure and alternatives
-# 4614faa - ROLLBACK: Revert to original App.tsx
-# 55e2da6 - Fix login: Use window.location.hostname
-# ... (see git log for full history)
-```
+- ❌ Skeleton screens persist after hard refresh
+- ❌ Wallet balances don't show (says "Your wallet is empty")
+- ❌ Portfolio allocations don't show
+- ❌ Same exact problem as the beginning
+- ✅ Backend API methods work (verified with dfx)
+- 🔴 **Frontend doesn't call them properly** (race condition)
 
 ---
 
-## Your Workflow
+## Implementation Workflow
 
-### Step 1: Check PR Review
+### Step 1: Create New Branch
 ```bash
 cd /home/theseus/alexandria/basket
-git checkout fix/frontend-loading-missing-api-methods
-git pull origin fix/frontend-loading-missing-api-methods
-
-# View PR comments
-gh pr view 7 --comments
+git checkout main
+git pull origin main
+git checkout -b fix/frontend-actor-race-condition
 ```
 
-### Step 2: Address Feedback
-Read Claude Code's review comments and fix any P0 (blocking) issues.
-
-**Common areas to check**:
-- Code quality issues
-- Type safety
-- Error handling
-- Security concerns
-- Performance issues
-
-### Step 3: Build and Test
+### Step 2: Read Diagnosis Document
 ```bash
-# Build frontend
+# Open and read the entire document
+cat FRONTEND_LOADING_FAILURE_ANALYSIS.md
+
+# Key sections:
+# - Actual Root Cause Analysis (explains the race condition)
+# - How to Actually Fix This (4 options, Option 1 recommended)
+# - Proper Verification Steps (MUST verify in browser)
+# - Success Criteria (wallet balances in <5 seconds)
+```
+
+### Step 3: Reproduce the Issue
+1. Open browser: https://qhlmp-5aaaa-aaaam-qd4jq-cai.icp0.io
+2. Open dev tools (F12)
+3. Hard refresh (Ctrl+Shift+R)
+4. Observe:
+   - ❌ Skeleton screens persist
+   - ❌ "Your wallet is empty" even with tokens
+   - ❌ No portfolio allocations
+   - Check console for errors
+   - Check Network tab for API call timing
+
+### Step 4: Implement Fix
+**Recommended**: Option 1 - Manual Actor with Better Initialization
+
+Key changes needed in `src/icpi_frontend/src/App.tsx`:
+1. Add `isInitialized` state
+2. Initialize actor atomically in single useEffect
+3. Don't render hooks until `isInitialized=true`
+4. Separate component for authenticated content
+
+See FRONTEND_LOADING_FAILURE_ANALYSIS.md for full code examples.
+
+### Step 5: Build Frontend
+```bash
 cd src/icpi_frontend
 npm run prebuild
 npm run build
 cd ../..
-
-# If backend changes needed
-cargo build --target wasm32-unknown-unknown --release -p icpi_backend
 ```
 
-### Step 4: Deploy to Mainnet
-**IMPORTANT**: Always deploy to mainnet, never local.
-
+### Step 6: Deploy to Mainnet
 ```bash
-# Deploy everything
-dfx deploy --network ic
-
-# Or deploy specific canister
-dfx deploy --network ic icpi_backend
+# Deploy ONLY frontend (backend is fine)
 dfx deploy --network ic icpi_frontend
 ```
 
-### Step 5: Test on Mainnet
-Visit: https://qhlmp-5aaaa-aaaam-qd4jq-cai.icp0.io
+### Step 7: Verify in Browser (CRITICAL)
+**Don't skip this - most important step!**
 
-Verify:
-- [ ] Site loads without errors
-- [ ] Login works
-- [ ] No console errors
-- [ ] Fixed issues don't regress
+1. Open: https://qhlmp-5aaaa-aaaam-qd4jq-cai.icp0.io
+2. Hard refresh (Ctrl+Shift+R) to clear cache
+3. Open dev tools (F12)
+4. Login if needed
+5. Check success criteria:
 
-### Step 6: Commit and Push
+   ✅ **Must achieve ALL of these:**
+   - Wallet balances visible in <5 seconds (not 20s)
+   - Portfolio allocations visible in <5 seconds
+   - No "Your wallet is empty" when wallet has tokens
+   - No skeleton screens lasting >2 seconds
+   - Console shows no "Actor not initialized" errors
+   - Network tab shows get_index_state_cached completes in <3s
 
-**CRITICAL**: Always commit after fixing issues and deploying.
+6. Test both scenarios:
+   - Fresh page load (hard refresh)
+   - Returning user (already authenticated)
+
+**If any criteria fail, the fix didn't work. Go back to Step 4.**
+
+### Step 8: Commit and Push
 
 ```bash
 # Stage all changes
 git add -A
 
 # Commit with clear message
-git commit -m "Address PR review: <description of fixes>
+git commit -m "Fix frontend actor initialization race condition
 
-<detailed explanation of what was fixed>
+Fixed skeleton screens and missing data by resolving actor initialization
+race condition. Hooks were firing with actor=null before actor was created,
+causing all queries to wait and fire simultaneously with 5-20s delays.
 
-## Testing
+## Solution
+[Describe which option you implemented from FRONTEND_LOADING_FAILURE_ANALYSIS.md]
+
+## Testing - Verified in Browser
 ✅ Built successfully
-✅ Deployed to mainnet: <canister IDs>
+✅ Deployed to mainnet: qhlmp-5aaaa-aaaam-qd4jq-cai
 ✅ Tested at https://qhlmp-5aaaa-aaaam-qd4jq-cai.icp0.io
-✅ Verified: <specific checks>
+✅ Wallet balances visible in <5 seconds (was 20s)
+✅ Portfolio allocations visible in <5 seconds
+✅ No skeleton screens >2 seconds
+✅ Console: No 'Actor not initialized' errors
+✅ Network: get_index_state_cached completes in <3s
 
 ## Changes Made
-- <file>: <what changed>
-- <file>: <what changed>
+- src/icpi_frontend/src/App.tsx: [describe changes]
+- [other files modified]
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude <noreply@anthropic.com>
 "
 
-# Push to branch (NOT main)
-git push origin fix/frontend-loading-missing-api-methods
-
-# Verify push succeeded
-git log origin/fix/frontend-loading-missing-api-methods --oneline -1
+# Push to branch
+git push origin fix/frontend-actor-race-condition
 ```
 
-**IMPORTANT Git Notes**:
-- ✅ Push to `fix/frontend-loading-missing-api-methods` branch
-- ❌ Never push to `main` directly
-- ✅ Always pull before starting: `git pull origin fix/frontend-loading-missing-api-methods`
-- ✅ Commit after EACH fix iteration, not in batches
+### Step 9: Create Pull Request
+```bash
+gh pr create --title "Fix: Frontend actor initialization race condition" --body "$(cat <<'EOF'
+## Problem
+Frontend showed persistent skeleton screens and no data after hard refresh.
+Backend API methods worked via dfx but frontend never loaded the data properly.
 
-### Step 7: Wait for Next Review
-GitHub Actions will trigger another review (~4 minutes).
+Root cause: Actor initialization race condition - hooks fired with actor=null
+before actor was created, causing 5-20 second delays.
 
-**Repeat Steps 1-6** until PR is approved (usually 2-4 iterations).
+## Solution
+[Describe which approach from FRONTEND_LOADING_FAILURE_ANALYSIS.md you used]
+
+## Testing
+✅ Wallet balances visible in <5 seconds (was 20s+)
+✅ Portfolio allocations visible in <5 seconds
+✅ No "Your wallet is empty" when wallet has tokens
+✅ No skeleton screens lasting >2 seconds
+✅ Console: No errors
+✅ Tested: Hard refresh + returning user scenarios
+
+## Before/After
+**Before**: 20 second delays, skeleton screens, no data
+**After**: <5 second load, all data visible, no skeletons
+
+Closes issue with frontend loading.
+EOF
+)"
+```
 
 ---
 
 ## Important Notes
 
-### Always Deploy to Mainnet
+### Always Verify in Browser, Not with dfx
+**❌ Wrong approach:**
 ```bash
-# ✅ Correct
-dfx deploy --network ic icpi_frontend
-
-# ❌ Wrong - never use local
-dfx deploy icpi_frontend
+# Backend testing proves nothing about frontend
+dfx canister call --network ic ev6xm-haaaa-aaaap-qqcza-cai get_index_state_cached
 ```
 
-### Always Test on Mainnet After Deploy
-After any change, verify at:
-- Frontend: https://qhlmp-5aaaa-aaaam-qd4jq-cai.icp0.io
-- Backend Candid UI: https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.icp0.io/?id=ev6xm-haaaa-aaaap-qqcza-cai
+**✅ Correct approach:**
+1. Open https://qhlmp-5aaaa-aaaam-qd4jq-cai.icp0.io in browser
+2. Open dev tools (F12)
+3. Check Network tab, Console, and UI
+4. Verify all success criteria met
 
 ### Canister IDs (Mainnet)
 - icpi_frontend: `qhlmp-5aaaa-aaaam-qd4jq-cai`
 - icpi_backend: `ev6xm-haaaa-aaaap-qqcza-cai`
 - ICPI token: `l6lep-niaaa-aaaap-qqeda-cai`
 
-### Git Workflow
-```bash
-# Check current branch
-git branch
-# Should show: * fix/frontend-loading-missing-api-methods
-
-# Pull latest before starting
-git pull origin fix/frontend-loading-missing-api-methods
-
-# After fixes, push
-git push origin fix/frontend-loading-missing-api-methods
-```
-
-### Files to Know About
-- `FRONTEND_REFACTOR_STATUS.md` - Full context of what was attempted
-- `FRONTEND_REFACTOR_BLOCKED.md` - Why ic-use-actor refactor failed
-- `QUICK_FIX_BUILD.md` - Build troubleshooting
-- `src/icpi_frontend/src/App.tsx` - Main app (original working version)
-- `src/icpi_frontend/src/hooks/useICPI.ts` - Data hooks (original working version)
-- `src/icpi_backend/src/lib.rs` - Backend API (has fixes)
+### Key Files
+- **FRONTEND_LOADING_FAILURE_ANALYSIS.md** ⭐ READ THIS FIRST
+- `FRONTEND_REFACTOR_BLOCKED.md` - Why ic-use-actor failed
+- `src/icpi_frontend/src/App.tsx` - Actor initialization (needs fixing)
+- `src/icpi_frontend/src/hooks/useICPI.ts` - Query hooks
+- `src/icpi_backend/src/lib.rs` - Backend API (working, don't change)
 
 ---
 
 ## If You Get Stuck
 
+### Fix Doesn't Work (Still Seeing Skeleton Screens)
+1. Check browser console for errors
+2. Check Network tab - are API calls completing?
+3. Add debug logging to App.tsx:
+   ```typescript
+   useEffect(() => {
+     console.log('🔍 Debug State:', {
+       actor: !!actor,
+       agent: !!agent,
+       principal,
+       isInitialized,
+     });
+   }, [actor, agent, principal, isInitialized]);
+   ```
+4. Try a different approach from FRONTEND_LOADING_FAILURE_ANALYSIS.md
+
 ### Build Fails
 ```bash
 # Re-install dependencies
-npm install tailwindcss tailwindcss-animate @tailwindcss/typography --workspace-root --legacy-peer-deps
-cd src/icpi_frontend && npm install --legacy-peer-deps
+cd src/icpi_frontend
+npm install --legacy-peer-deps
+npm run prebuild
+npm run build
 ```
 
-### Deploy Fails
+### Need to Revert Changes
 ```bash
-# Check dfx identity
-dfx identity whoami
-
-# Check you're on mainnet
-dfx ping ic
-```
-
-### Need to Revert a Commit
-```bash
-git revert HEAD
-git push origin fix/frontend-loading-missing-api-methods
+git checkout src/icpi_frontend/src/App.tsx
 ```
 
 ---
 
 ## Success Criteria
 
-PR is approved when Claude Code review shows:
-- ✅ 0 P0 (blocking) issues
-- ✅ Build succeeds
-- ✅ Deploys successfully
-- ✅ Site functional on mainnet
+✅ **Wallet balances visible in <5 seconds** (not 20s)
+✅ **Portfolio allocations visible in <5 seconds**
+✅ **No "Your wallet is empty"** when wallet has tokens
+✅ **No skeleton screens lasting >2 seconds**
+✅ **Console: No "Actor not initialized" errors**
+✅ **Network: get_index_state_cached completes in <3s**
 
-Then merge to main:
-```bash
-git checkout main
-git merge fix/frontend-loading-missing-api-methods
-git push origin main
-```
+Test both:
+- Hard refresh (Ctrl+Shift+R)
+- Returning user (already authenticated)
 
 ---
 
-**START**: Begin by running `gh pr view 7 --comments` to see what needs to be fixed.
+**START HERE**:
+1. Read FRONTEND_LOADING_FAILURE_ANALYSIS.md (entire document)
+2. Reproduce issue in browser
+3. Implement Option 1 (recommended)
+4. Verify in browser (not with dfx)
+5. Only commit if ALL success criteria met
