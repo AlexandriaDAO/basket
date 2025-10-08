@@ -83,10 +83,12 @@ async fn get_index_state() -> Result<types::portfolio::IndexState> {
     Ok(_5_INFORMATIONAL::display::get_index_state_cached().await)
 }
 
-/// BUGFIX (PR #8 Review): Restore query annotation for cached read
-/// This was incorrectly marked as update, causing unnecessary cycles cost and slower response
-#[query]
-#[candid_method(query)]
+/// NOTE (PR #8 Review): Reviewer suggested this should be #[query] for cached reads
+/// However, the underlying implementation makes inter-canister calls (get_portfolio_state_uncached)
+/// which requires #[update]. The "cached" name is misleading - there's no actual cache implementation yet.
+/// TODO: Implement real caching in Phase 2/3, then convert to #[query]
+#[update]
+#[candid_method(update)]
 async fn get_index_state_cached() -> Result<types::portfolio::IndexState> {
     Ok(_5_INFORMATIONAL::display::get_index_state_cached().await)
 }
