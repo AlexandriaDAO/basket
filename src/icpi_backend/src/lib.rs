@@ -112,6 +112,44 @@ fn clear_caches() -> Result<String> {
     Ok("Caches cleared".to_string())
 }
 
+// ===== TESTING =====
+
+/// Test endpoint for Kong Liquidity integration (Zone 3)
+///
+/// Queries Kong Locker TVL and Kongswap prices to verify integration works.
+/// Use this after deployment to validate mainnet connectivity.
+///
+/// Example:
+/// ```bash
+/// dfx canister call --network ic ev6xm-haaaa-aaaap-qqcza-cai test_kong_liquidity
+/// ```
+#[update]
+#[candid_method(update)]
+async fn test_kong_liquidity() -> Result<String> {
+    ic_cdk::println!("🧪 Testing Kong Liquidity integration...");
+
+    // Test 1: Get TVL from Kong Locker
+    let tvl_result = _3_KONG_LIQUIDITY::tvl::calculate_kong_locker_tvl().await;
+    let tvl = match tvl_result {
+        Ok(data) => data,
+        Err(e) => return Err(IcpiError::Other(format!("TVL calculation failed: {}", e))),
+    };
+
+    // Test 2: Get ALEX price from Kongswap
+    let alex_price = _3_KONG_LIQUIDITY::pools::get_token_price_in_usdt(&types::TrackedToken::ALEX).await?;
+
+    // Format results
+    let mut output = String::from("Kong Liquidity Integration Test Results:\n\n");
+    output.push_str("TVL by Token:\n");
+    for (token, usd_value) in &tvl {
+        output.push_str(&format!("  {}: ${:.2}\n", token.to_symbol(), usd_value));
+    }
+    output.push_str(&format!("\nALEX Price: {} ckUSDT\n", alex_price));
+    output.push_str("\n✅ Zone 3 integration working!");
+
+    Ok(output)
+}
+
 // ===== INITIALIZATION =====
 
 #[init]
