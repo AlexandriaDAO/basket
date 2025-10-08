@@ -33,14 +33,34 @@ pub fn require_admin() -> Result<()> {
     if is_admin {
         Ok(())
     } else {
-        Err(IcpiError::Other(format!(
-            "Authorization failed: {} is not an admin principal",
-            caller.to_text()
-        )))
+        Err(IcpiError::System(crate::infrastructure::errors::SystemError::Unauthorized {
+            principal: caller.to_text(),
+            required_role: "admin".to_string(),
+        }))
     }
 }
 
 /// Emergency pause state
+///
+/// **CRITICAL UPGRADE BEHAVIOR**: This thread-local state is NOT persisted across canister upgrades.
+///
+/// **What happens on upgrade:**
+/// - Emergency pause resets to `false` (system becomes unpaused)
+/// - Admin must manually re-enable pause after upgrade if still needed
+///
+/// **Impact scenarios:**
+/// 1. Admin activates pause → investigates issue → deploys fix → **pause silently disabled**
+/// 2. Admin activates pause → unrelated upgrade → **pause silently disabled**
+///
+/// **Mitigation:**
+/// - Document this behavior clearly (done)
+/// - Admin should check pause state immediately after upgrade
+/// - Consider implementing stable storage in future (Phase 5)
+///
+/// **Why thread-local:**
+/// - Simple implementation for MVP
+/// - Pause is typically temporary (minutes/hours, not days)
+/// - Full stable storage implementation deferred to Phase 5
 thread_local! {
     static EMERGENCY_PAUSE: RefCell<bool> = RefCell::new(false);
 }
@@ -85,7 +105,7 @@ pub fn log_admin_action(action: String) {
 pub fn check_not_paused() -> Result<()> {
     EMERGENCY_PAUSE.with(|p| {
         if *p.borrow() {
-            Err(IcpiError::Other("System is emergency paused".to_string()))
+            Err(IcpiError::System(crate::infrastructure::errors::SystemError::EmergencyPause))
         } else {
             Ok(())
         }
