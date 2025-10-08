@@ -18,6 +18,19 @@ pub struct BurnResult {
 }
 
 // Main burn orchestration function
+//
+// BURN FLOW (ICRC-2 - Requires TWO Approvals):
+// 1. User calls icrc2_approve on ckUSDT ledger to approve backend for 0.1 ckUSDT fee
+// 2. User calls icrc2_approve on ICPI ledger to approve backend for burn amount
+// 3. User calls this burn_icpi function
+// 4. Backend validates request and checks user has sufficient ICPI balance
+// 5. Backend collects 0.1 ckUSDT fee via ICRC-2 transfer_from (from ckUSDT approval)
+// 6. Backend pulls ICPI from user via ICRC-2 transfer_from (atomically burns it)
+// 7. Backend calculates proportional redemptions based on current portfolio
+// 8. Backend distributes redemption tokens to user
+//
+// SECURITY: ICRC-2 prevents race conditions because each burn atomically pulls
+// from the specific user's approved tokens, not from a shared pool
 pub async fn burn_icpi(caller: Principal, amount: Nat) -> Result<BurnResult> {
     // Acquire reentrancy guard - prevents concurrent burns by same user
     let _guard = crate::infrastructure::BurnGuard::acquire(caller)?;
@@ -66,16 +79,26 @@ pub async fn burn_icpi(caller: Principal, amount: Nat) -> Result<BurnResult> {
     ic_cdk::println!("User {} has {} ICPI, burning {} ICPI", caller, user_icpi_balance, amount);
 
     // NOW collect fee (after all validations passed)
-    let _ckusdt = Principal::from_text(crate::infrastructure::constants::CKUSDT_CANISTER_ID)
-        .map_err(|e| IcpiError::Other(format!("Invalid ckUSDT principal: {}", e)))?;
-    crate::_1_CRITICAL_OPERATIONS::minting::fee_handler::collect_mint_fee(caller).await?;
-
-    ic_cdk::println!("Fee collected for burn from user {}", caller);
+    // Fee is 0.1 ckUSDT - user must have approved backend for this amount
+    // Same fee structure as minting (prevents spam, covers compute costs)
+    ic_cdk::println!("Collecting 0.1 ckUSDT burn fee from user {}", caller);
+    match crate::_1_CRITICAL_OPERATIONS::minting::fee_handler::collect_mint_fee(caller).await {
+        Ok(_) => {
+            ic_cdk::println!("Fee collected successfully for burn from user {}", caller);
+        }
+        Err(e) => {
+            ic_cdk::println!("⚠️ Fee collection failed for burn: {}", e);
+            ic_cdk::println!("User must approve backend for 0.1 ckUSDT on ckUSDT ledger first");
+            return Err(e);
+        }
+    }
 
     ic_cdk::println!("Burning {} ICPI from supply of {}", amount, current_supply);
 
     // CRITICAL: Transfer ICPI from user to backend (which automatically burns it)
     // Uses ICRC-2 transfer_from so user keeps custody until burn confirmed
+    // IMPORTANT: User must have called icrc2_approve on ICPI ledger first to approve backend
+    // Backend is the burning account - tokens transferred to it are automatically burned
     let icpi_canister = Principal::from_text(crate::infrastructure::constants::ICPI_CANISTER_ID)
         .map_err(|e| IcpiError::Other(format!("Invalid ICPI principal: {}", e)))?;
 
@@ -107,6 +130,8 @@ pub async fn burn_icpi(caller: Principal, amount: Nat) -> Result<BurnResult> {
             ic_cdk::println!("✅ ICPI transferred to burning account at block {} via ICRC-2", block);
         }
         Ok((Err(TransferFromError::InsufficientAllowance { allowance }),)) => {
+            ic_cdk::println!("⚠️ Insufficient ICPI approval: required {}, approved {}", amount, allowance);
+            ic_cdk::println!("User must call icrc2_approve on ICPI ledger to approve backend first");
             return Err(IcpiError::Burn(crate::infrastructure::BurnError::InsufficientApproval {
                 required: amount.to_string(),
                 approved: allowance.to_string(),
