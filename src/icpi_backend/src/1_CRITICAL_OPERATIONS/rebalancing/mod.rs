@@ -124,7 +124,7 @@ pub fn start_rebalancing_timer() {
     ic_cdk_timers::set_timer_interval(
         std::time::Duration::from_secs(REBALANCE_INTERVAL_SECONDS),
         || {
-            // Check if rebalancing is already in progress
+            // Check if rebalancing is already in progress (local guard)
             let already_running = REBALANCING_IN_PROGRESS.with(|flag| {
                 let is_running = *flag.borrow();
                 if !is_running {
@@ -138,19 +138,41 @@ pub fn start_rebalancing_timer() {
                 return;
             }
 
-            ic_cdk::spawn(async {
-                let result = hourly_rebalance().await;
+            // M-4: Try to acquire global operation lock
+            match crate::infrastructure::reentrancy::try_start_global_operation(
+                crate::infrastructure::reentrancy::GlobalOperation::Rebalancing
+            ) {
+                Ok(()) => {
+                    // Proceed with rebalancing
+                    ic_cdk::spawn(async {
+                        let result = hourly_rebalance().await;
 
-                // Clear the in-progress flag
-                REBALANCING_IN_PROGRESS.with(|flag| {
-                    *flag.borrow_mut() = false;
-                });
+                        // Always end global operation (success or failure)
+                        crate::infrastructure::reentrancy::end_global_operation(
+                            crate::infrastructure::reentrancy::GlobalOperation::Rebalancing
+                        );
 
-                match result {
-                    Ok(msg) => ic_cdk::println!("✅ Rebalance: {}", msg),
-                    Err(e) => ic_cdk::println!("❌ Rebalance failed: {}", e),
+                        // Clear the local in-progress flag
+                        REBALANCING_IN_PROGRESS.with(|flag| {
+                            *flag.borrow_mut() = false;
+                        });
+
+                        match result {
+                            Ok(msg) => ic_cdk::println!("✅ Rebalance: {}", msg),
+                            Err(e) => ic_cdk::println!("❌ Rebalance failed: {}", e),
+                        }
+                    });
+                },
+                Err(e) => {
+                    // Global operation blocked (mints/burns active or grace period)
+                    ic_cdk::println!("⏭️ Skipping rebalance cycle: {}", e);
+
+                    // Clear local flag since we're not proceeding
+                    REBALANCING_IN_PROGRESS.with(|flag| {
+                        *flag.borrow_mut() = false;
+                    });
                 }
-            });
+            }
         }
     );
 
@@ -167,7 +189,7 @@ pub async fn perform_rebalance() -> Result<String> {
 
     ic_cdk::println!("🔧 Manual rebalance triggered");
 
-    // Check if rebalancing is already in progress
+    // Check if rebalancing is already in progress (local guard)
     let already_running = REBALANCING_IN_PROGRESS.with(|flag| {
         let is_running = *flag.borrow();
         if !is_running {
@@ -180,9 +202,19 @@ pub async fn perform_rebalance() -> Result<String> {
         return Err(IcpiError::Rebalance(RebalanceError::RebalancingInProgress));
     }
 
+    // M-4: Try to acquire global operation lock
+    crate::infrastructure::reentrancy::try_start_global_operation(
+        crate::infrastructure::reentrancy::GlobalOperation::Rebalancing
+    )?;
+
     let result = hourly_rebalance().await;
 
-    // Clear the in-progress flag
+    // Always end global operation (success or failure)
+    crate::infrastructure::reentrancy::end_global_operation(
+        crate::infrastructure::reentrancy::GlobalOperation::Rebalancing
+    );
+
+    // Clear the local in-progress flag
     REBALANCING_IN_PROGRESS.with(|flag| {
         *flag.borrow_mut() = false;
     });

@@ -128,6 +128,10 @@ pub enum SystemError {
     InterCanisterCallFailed { canister: String, method: String, reason: String },
     OperationInProgress { operation: String, user: String },
     EmergencyPause,
+    // M-4: Global operation coordination errors
+    GracePeriodActive { wait_seconds: u64, current_operation: String },
+    RebalancingInProgress,
+    CriticalOperationInProgress { operation: String },
 }
 
 // Query errors
