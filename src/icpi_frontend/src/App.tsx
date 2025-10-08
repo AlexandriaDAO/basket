@@ -68,10 +68,10 @@ function AppContent() {
   const transferMutation = useTransferToken();
 
   const handleLogin = async () => {
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
     await login({
-      identityProvider: process.env.DFX_NETWORK === 'local'
-        ? 'http://localhost:4943'
-        : 'https://identity.ic0.app',
+      identityProvider: isLocal ? 'http://localhost:4943' : 'https://identity.ic0.app',
       maxTimeToLive: BigInt(7 * 24 * 60 * 60 * 1000 * 1000 * 1000), // 7 days
     });
   };
