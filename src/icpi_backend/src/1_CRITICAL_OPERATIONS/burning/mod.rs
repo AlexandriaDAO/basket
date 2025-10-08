@@ -5,6 +5,9 @@ pub mod burn_validator;
 pub mod redemption_calculator;
 pub mod token_distributor;
 
+#[cfg(test)]
+mod tests;
+
 use candid::{CandidType, Deserialize, Nat, Principal};
 use crate::infrastructure::{Result, IcpiError};
 
