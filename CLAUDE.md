@@ -1,4 +1,4 @@
-This project is the "Internet Computer Portfolio Index" (ICPI). It's a token that represents a basket of assets that are kept proportional to the dollar value of locked liquidity that the token has.
+This project, "Basket", introduces the "Internet Computer Portfolio Index" (ICPI). It's a token that represents a basket of assets that are kept proportional to the dollar value of locked liquidity that the token has.
 
 ## Three Canisters
 
@@ -14,7 +14,7 @@ The backend canister (`ev6xm-haaaa-aaaap-qqcza-cai`) is the minting and burning 
 - **Minting:** The backend can mint any amount of ICPI by calling the ledger. Only authorized minting functions should exist.
 - **Security implication:** Protect minting functions carefully. Any bug allowing unauthorized mints or miscalculated burns directly affects token supply and user funds.
 
-The amount of 'Locked Liquidity' I'm referencing is queried from the kong_locker project (../kong_locker/). Query kong_locker_backend (eazgb-giaaa-aaaap-qqc2q-cai) for lock canisters, then kongswap_backend (2ipq2-uqaaa-aaaar-qailq-cai) for user_balances. Filter results for [ALEX, ZERO, KONG, BOB] tokens.
+The amount of 'Locked Liquidity' I'm referencing is queried from the kong_locker project. Query kong_locker_backend (eazgb-giaaa-aaaap-qqc2q-cai) for lock canisters, then kongswap_backend (2ipq2-uqaaa-aaaar-qailq-cai) for user_balances. Filter results for [ALEX, ZERO, KONG, BOB] tokens.
 
 The amount included in this index is limited to approved tokens right now, e.g., right now the distribution looks like this:
 
@@ -72,7 +72,13 @@ We shouldn't use stable structures or persistent storage anywhere unless absolut
 
 Kongswap's pools always denominate liquidity in 50/50 pools that either denominate in ckUSDT or ICP, which is great because we know locked liquidity dollar values are always pegged to a 50/50 ratio of hard assets as a even standard. It's also great because we make all trades with ckUSDT and auto-routing is well handled. 
 
-We should never guess types. Reference ./kong-reference/ for Kongswap source code and ../kong_locker/ for lock canister details. Always test with dfx commands first before implementing.
+We should never guess types. Always test with dfx commands first before implementing.
+
+**API Reference Codebases (Read-Only):**
+- `./kong-swap-reference/` - Complete Kongswap source code for API reference
+- `./kong-locker-reference/` - Complete kong_locker source code for API reference
+
+These folders are read-only reference copies not controlled by our project. They exist solely for understanding external canister APIs, type definitions, and integration patterns. Never modify them.
 
 Development workflow - always deploy and test on mainnet:
 - **CRITICAL: ALWAYS deploy to mainnet after ANY frontend changes** - run `./deploy.sh --network ic` immediately after updating frontend files (docs, UI, components, etc.)

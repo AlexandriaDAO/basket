@@ -1,0 +1,140 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* Import fonts */
+@import url('https://fonts.googleapis.com/css2?family=Exo+2:ital,wght@0,100..900;1,100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100..700;1,100..700&display=swap');
+
+@layer base {
+  /* Set up dark theme foundation */
+  :root {
+    font-family: 'Exo 2', 'Space Grotesk', system-ui, sans-serif;
+  }
+  
+  html {
+    background: linear-gradient(135deg, 
+      #0D111C 0%, 
+      #141A26 25%, 
+      #202632 50%, 
+      #141A26 75%, 
+      #0D111C 100%);
+    min-height: 100vh;
+  }
+  
+  body {
+    @apply bg-transparent text-kong-text-primary;
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  /* Kong Panel - Main card component */
+  .kong-panel {
+    @apply bg-kong-bg-secondary border border-kong-border rounded-kong-panel p-6;
+    @apply shadow-sm hover:shadow-lg transition-all duration-200;
+    @apply hover:-translate-y-1;
+  }
+  
+  /* Kong Button - Primary CTA button */
+  .kong-button {
+    @apply px-6 py-3 rounded-kong-button font-semibold text-white;
+    @apply transition-all duration-150 focus:outline-none;
+    @apply hover:-translate-y-0.5 hover:brightness-110;
+  }
+  
+  .kong-button-primary {
+    @apply kong-button bg-gradient-button;
+    @apply focus:ring-2 focus:ring-kong-accent-green/50;
+  }
+  
+  .kong-button-secondary {
+    @apply kong-button bg-gradient-to-r from-kong-accent-blue to-kong-info-hover;
+    @apply focus:ring-2 focus:ring-kong-accent-blue/50;
+  }
+  
+  .kong-button-error {
+    @apply kong-button bg-gradient-error;
+    @apply focus:ring-2 focus:ring-kong-error/50;
+  }
+  
+  /* Kong Input - Form inputs */
+  .kong-input {
+    @apply bg-kong-bg-secondary border border-kong-border rounded-lg;
+    @apply px-4 py-3 text-kong-text-primary placeholder-kong-text-secondary/70;
+    @apply transition-all duration-200 focus:outline-none;
+    @apply focus:border-kong-accent-green/50 focus:ring-2 focus:ring-kong-accent-green/10;
+    @apply focus:bg-kong-bg-tertiary;
+  }
+  
+  /* Kong Badge - Status indicators */
+  .kong-badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full;
+    @apply text-xs font-semibold uppercase tracking-wide;
+    @apply transition-all duration-150;
+  }
+  
+  .kong-badge-success {
+    @apply kong-badge bg-kong-success/20 text-kong-success border border-kong-success/30;
+  }
+  
+  .kong-badge-error {
+    @apply kong-badge bg-kong-error/20 text-kong-error border border-kong-error/30;
+  }
+  
+  .kong-badge-warning {
+    @apply kong-badge bg-kong-warning/20 text-kong-warning border border-kong-warning/30;
+  }
+  
+  /* Gradient Text Effect */
+  .kong-gradient-text {
+    @apply bg-gradient-kong bg-clip-text text-transparent;
+  }
+  
+  /* Shimmer loading effect */
+  .kong-shimmer {
+    @apply relative overflow-hidden bg-kong-bg-tertiary;
+  }
+  
+  .kong-shimmer::before {
+    content: '';
+    @apply absolute inset-0 bg-gradient-to-r from-transparent via-kong-bg-secondary/80 to-transparent;
+    @apply -translate-x-full animate-shimmer;
+  }
+  
+  /* Shine effect for premium interactions */
+  .kong-shine {
+    @apply relative overflow-hidden;
+  }
+  
+  .kong-shine::before {
+    content: '';
+    @apply absolute top-0 left-[-100%] w-full h-full;
+    background: linear-gradient(90deg, 
+      transparent 0%, 
+      rgba(255, 255, 255, 0.4) 50%, 
+      transparent 100%);
+    @apply animate-shine;
+  }
+}
+
+@layer utilities {
+  /* Custom scrollbar styling */
+  .kong-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .kong-scrollbar::-webkit-scrollbar-track {
+    @apply bg-kong-bg-secondary;
+  }
+  
+  .kong-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-kong-border rounded-full;
+  }
+  
+  .kong-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-kong-accent-green/50;
+  }
+}

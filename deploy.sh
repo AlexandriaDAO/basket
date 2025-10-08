@@ -209,59 +209,61 @@ if [ "$DEPLOY_FRONTEND" = true ]; then
 fi
 
 # Deploy token separately with initialization arguments
-if [ "$DEPLOY_TOKEN" = true ]; then
-    print_info "Deploying ICPI token with initialization arguments..."
-
-    # Convert SVG logo to base64
-    TOKEN_LOGO=$(base64 -w 0 token-logo.svg 2>/dev/null || base64 token-logo.svg)
-
-    # Deploy token with initialization arguments for ICRC1 ledger format
-    dfx deploy ICPI $DEPLOY_ARGS --argument "(variant { Init =
-    record {
-         minting_account = record { owner = principal \"ev6xm-haaaa-aaaap-qqcza-cai\"; subaccount = null };
-         fee_collector_account = null;
-         transfer_fee = 10_000;
-         decimals = opt 8;
-         max_memo_length = opt 32;
-         token_symbol = \"ICPI\";
-         token_name = \"Internet Computer Portfolio Index\";
-         metadata = vec {
-            record { \"icrc1:symbol\"; variant { Text = \"ICPI\" } };
-            record { \"icrc1:name\"; variant { Text = \"Internet Computer Portfolio Index\" } };
-            record { \"icrc1:description\"; variant { Text = \"A redeemable basket of Liquid ICP Assets\" } };
-            record { \"icrc1:decimals\"; variant { Nat = 8 } };
-            record { \"icrc1:fee\"; variant { Nat = 10_000 } };
-            record { \"icrc1:logo\"; variant { Text = \"data:image/svg+xml;base64,${TOKEN_LOGO}\" } };
-         };
-         initial_balances = vec {};
-         feature_flags = opt record {
-            icrc2 = true;
-         };
-         archive_options = record {
-             num_blocks_to_archive = 1000;
-             trigger_threshold = 2000;
-             max_message_size_bytes = null;
-             controller_id = principal \"ev6xm-haaaa-aaaap-qqcza-cai\";
-             more_controller_ids = null;
-             cycles_for_archive_creation = null;
-             node_max_memory_size_bytes = null;
-             max_transactions_per_response = null;
-         };
-     }
-    })"
-
-    if [ $? -eq 0 ]; then
-        print_info "ICPI token deployed successfully!"
-        if [ "$NETWORK" = "ic" ]; then
-            print_info "ICPI Token canister ID: l6lep-niaaa-aaaap-qqeda-cai"
-        else
-            print_info "ICPI Token canister ID: l6lep-niaaa-aaaap-qqeda-cai (local)"
-        fi
-    else
-        print_error "Failed to deploy ICPI token!"
-        exit 1
-    fi
-fi
+# NOTE: Token canister (l6lep-niaaa-aaaap-qqeda-cai) already deployed on mainnet
+# Commenting out to prevent accidental redeployment
+# if [ "$DEPLOY_TOKEN" = true ]; then
+#     print_info "Deploying ICPI token with initialization arguments..."
+#
+#     # Convert SVG logo to base64
+#     TOKEN_LOGO=$(base64 -w 0 token-logo.svg 2>/dev/null || base64 token-logo.svg)
+#
+#     # Deploy token with initialization arguments for ICRC1 ledger format
+#     dfx deploy ICPI $DEPLOY_ARGS --argument "(variant { Init =
+#     record {
+#          minting_account = record { owner = principal \"ev6xm-haaaa-aaaap-qqcza-cai\"; subaccount = null };
+#          fee_collector_account = null;
+#          transfer_fee = 10_000;
+#          decimals = opt 8;
+#          max_memo_length = opt 32;
+#          token_symbol = \"ICPI\";
+#          token_name = \"Internet Computer Portfolio Index\";
+#          metadata = vec {
+#             record { \"icrc1:symbol\"; variant { Text = \"ICPI\" } };
+#             record { \"icrc1:name\"; variant { Text = \"Internet Computer Portfolio Index\" } };
+#             record { \"icrc1:description\"; variant { Text = \"A redeemable basket of Liquid ICP Assets\" } };
+#             record { \"icrc1:decimals\"; variant { Nat = 8 } };
+#             record { \"icrc1:fee\"; variant { Nat = 10_000 } };
+#             record { \"icrc1:logo\"; variant { Text = \"data:image/svg+xml;base64,${TOKEN_LOGO}\" } };
+#          };
+#          initial_balances = vec {};
+#          feature_flags = opt record {
+#             icrc2 = true;
+#          };
+#          archive_options = record {
+#              num_blocks_to_archive = 1000;
+#              trigger_threshold = 2000;
+#              max_message_size_bytes = null;
+#              controller_id = principal \"ev6xm-haaaa-aaaap-qqcza-cai\";
+#              more_controller_ids = null;
+#              cycles_for_archive_creation = null;
+#              node_max_memory_size_bytes = null;
+#              max_transactions_per_response = null;
+#          };
+#      }
+#     })"
+#
+#     if [ $? -eq 0 ]; then
+#         print_info "ICPI token deployed successfully!"
+#         if [ "$NETWORK" = "ic" ]; then
+#             print_info "ICPI Token canister ID: l6lep-niaaa-aaaap-qqeda-cai"
+#         else
+#             print_info "ICPI Token canister ID: l6lep-niaaa-aaaap-qqeda-cai (local)"
+#         fi
+#     else
+#         print_error "Failed to deploy ICPI token!"
+#         exit 1
+#     fi
+# fi
 
 if [ -n "$CANISTERS_TO_DEPLOY" ]; then
     print_info "Deploying canisters: $CANISTERS_TO_DEPLOY"

@@ -1,0 +1,33 @@
+type AnalyticsOverview = record {
+  participants : vec record { principal; principal };
+  last_updated : nat64;
+  total_lock_canisters : nat64;
+};
+type DetailedCanisterStatus = record {
+  memory_size : nat;
+  is_blackholed : bool;
+  canister_id : principal;
+  controller_count : nat32;
+  cycle_balance : nat;
+  module_hash : opt blob;
+};
+type Result = variant { Ok : text; Err : text };
+type Result_1 = variant { Ok : principal; Err : text };
+type Result_2 = variant { Ok : DetailedCanisterStatus; Err : text };
+service : () -> {
+  // Complete setup for a partially created canister
+  complete_my_canister_setup : () -> (Result);
+  // Create and immediately blackhole a lock canister (with 2 ICP payment required)
+  create_lock_canister : () -> (Result_1);
+  // Get all lock canisters
+  get_all_lock_canisters : () -> (vec record { principal; principal }) query;
+  // Get analytics overview for all lock canisters
+  get_analytics_overview : () -> (AnalyticsOverview) query;
+  // Get detailed status including cycles and blackhole verification
+  // Note: This is an update call because it queries the management canister
+  get_detailed_canister_status : () -> (Result_2);
+  // Get user's lock canister
+  get_my_lock_canister : () -> (opt principal) query;
+  // Get total number of lock positions (unique users with lock canisters)
+  get_total_positions_count : () -> (nat64) query;
+}

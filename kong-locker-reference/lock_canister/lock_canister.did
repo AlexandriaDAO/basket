@@ -1,0 +1,11 @@
+type Result = variant { Ok : text; Err : text };
+service : (principal) -> {
+  __get_candid_interface_tmp_hack : () -> (text) query;
+  // Get the principal of the user who created this lock canister
+  get_creator : () -> (principal) query;
+  // Get the canister's principal (for sending LP tokens to)
+  get_principal : () -> (principal) query;
+  // Register with KongSwap if ICP is available
+  // Anyone can call this - ICP requirement prevents spam
+  register_if_funded : () -> (Result);
+}

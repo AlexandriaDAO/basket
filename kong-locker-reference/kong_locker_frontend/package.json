@@ -1,0 +1,41 @@
+{
+  "name": "lp-locker-frontend",
+  "version": "1.0.0",
+  "description": "Kong Locker LP Token Locking Interface",
+  "private": true,
+  "scripts": {
+    "dev": "vite dev --port 3001",
+    "start": "vite dev --port 3001",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-static": "^3.0.2",
+    "@sveltejs/kit": "^2.5.20",
+    "@sveltejs/vite-plugin-svelte": "^3.1.1",
+    "@tailwindcss/forms": "^0.5.7",
+    "@tailwindcss/typography": "^0.5.13",
+    "@types/three": "^0.166.0",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.40",
+    "svelte": "^5.0.0-next.208",
+    "svelte-check": "^3.8.5",
+    "tailwindcss": "^3.4.7",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0"
+  },
+  "dependencies": {
+    "@dfinity/agent": "^2.1.1",
+    "@dfinity/auth-client": "^2.1.1",
+    "@dfinity/candid": "^2.1.1",
+    "@dfinity/principal": "^2.1.1",
+    "canvas-confetti": "^1.9.3",
+    "chart.js": "^4.4.3",
+    "d3": "^7.9.0",
+    "lucide-svelte": "^0.427.0",
+    "three": "^0.167.1"
+  },
+  "type": "module"
+}
