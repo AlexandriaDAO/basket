@@ -8,9 +8,7 @@
 
 use candid::Principal;
 use crate::infrastructure::{Result, IcpiError};
-
-/// Kong Locker backend canister ID (mainnet)
-const KONG_LOCKER_CANISTER: &str = "eazgb-giaaa-aaaap-qqc2q-cai";
+use crate::infrastructure::constants::KONG_LOCKER_ID;
 
 /// Get all lock canisters from kong_locker
 ///
@@ -19,7 +17,7 @@ const KONG_LOCKER_CANISTER: &str = "eazgb-giaaa-aaaap-qqc2q-cai";
 /// This queries the kong_locker backend which tracks all created lock canisters.
 /// Each user can have one lock canister that holds their LP tokens.
 pub async fn get_all_lock_canisters() -> Result<Vec<(Principal, Principal)>> {
-    let kong_locker = Principal::from_text(KONG_LOCKER_CANISTER)
+    let kong_locker = Principal::from_text(KONG_LOCKER_ID)
         .map_err(|e| IcpiError::Other(format!("Invalid kong_locker canister ID: {}", e)))?;
 
     let (canisters,): (Vec<(Principal, Principal)>,) = ic_cdk::call(
@@ -41,6 +39,6 @@ mod tests {
 
     #[test]
     fn test_kong_locker_canister_id() {
-        assert!(Principal::from_text(KONG_LOCKER_CANISTER).is_ok());
+        assert!(Principal::from_text(KONG_LOCKER_ID).is_ok());
     }
 }

@@ -5,11 +5,9 @@
 
 use candid::Principal;
 use crate::infrastructure::{Result, IcpiError};
+use crate::infrastructure::constants::KONGSWAP_BACKEND_ID;
 use crate::types::TrackedToken;
 use crate::types::kongswap::{UserBalancesResult, UserBalancesReply};
-
-/// Kongswap backend canister ID (for querying user balances)
-const KONGSWAP_CANISTER: &str = "2ipq2-uqaaa-aaaar-qailq-cai";
 
 /// Calculate TVL from Kong Locker positions
 ///
@@ -46,7 +44,7 @@ pub async fn calculate_kong_locker_tvl() -> Result<Vec<(TrackedToken, f64)>> {
         tvl_map.insert(token.to_symbol().to_string(), 0.0);
     }
 
-    let kongswap = Principal::from_text(KONGSWAP_CANISTER)
+    let kongswap = Principal::from_text(KONGSWAP_BACKEND_ID)
         .map_err(|e| IcpiError::Other(format!("Invalid kongswap canister ID: {}", e)))?;
 
     // Query balances for each lock canister in parallel
@@ -86,7 +84,8 @@ pub async fn calculate_kong_locker_tvl() -> Result<Vec<(TrackedToken, f64)>> {
                     // usd_amount_1 = USD value of symbol_1 side only
                     // We must use usd_amount_X to avoid double-counting!
 
-                    // Check symbol_0 for tracked tokens
+                    // Check symbol_0 and symbol_1 for tracked tokens
+                    let mut tracked_found = false;
                     for token in &tracked_tokens {
                         let tracked_symbol = token.to_symbol();
                         if lp.symbol_0 == tracked_symbol {
@@ -99,8 +98,9 @@ pub async fn calculate_kong_locker_tvl() -> Result<Vec<(TrackedToken, f64)>> {
                                 &lock_id[..8],
                                 lp.usd_amount_0
                             );
-                            break;
-                        } else if lp.symbol_1 == tracked_symbol {
+                            tracked_found = true;
+                        }
+                        if lp.symbol_1 == tracked_symbol {
                             // Add only this token's side of the LP
                             *tvl_map.get_mut(tracked_symbol).unwrap() += lp.usd_amount_1;
 
@@ -110,8 +110,20 @@ pub async fn calculate_kong_locker_tvl() -> Result<Vec<(TrackedToken, f64)>> {
                                 &lock_id[..8],
                                 lp.usd_amount_1
                             );
-                            break;
+                            tracked_found = true;
                         }
+                    }
+
+                    // Defensive check: If both sides are tracked tokens (e.g., ALEX/ZERO pool),
+                    // we correctly count both sides. This is intentional and expected.
+                    if !tracked_found {
+                        // This LP position doesn't contain any tracked tokens - skip it
+                        ic_cdk::println!(
+                            "  Skipping {}/{} pool in {} (no tracked tokens)",
+                            lp.symbol_0,
+                            lp.symbol_1,
+                            &lock_id[..8]
+                        );
                     }
                 }
             }
@@ -151,6 +163,6 @@ mod tests {
 
     #[test]
     fn test_kongswap_canister_id() {
-        assert!(Principal::from_text(KONGSWAP_CANISTER).is_ok());
+        assert!(Principal::from_text(KONGSWAP_BACKEND_ID).is_ok());
     }
 }

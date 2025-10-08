@@ -6,11 +6,9 @@
 use candid::{Nat, Principal};
 use num_traits::ToPrimitive;
 use crate::infrastructure::{Result, IcpiError};
+use crate::infrastructure::constants::KONGSWAP_BACKEND_ID;
 use crate::types::TrackedToken;
 use crate::types::kongswap::SwapAmountsResult;
-
-/// Kongswap backend canister ID (mainnet)
-const KONGSWAP_CANISTER: &str = "2ipq2-uqaaa-aaaar-qailq-cai";
 
 /// Get token price in ckUSDT
 ///
@@ -29,7 +27,7 @@ pub async fn get_token_price_in_usdt(token: &TrackedToken) -> Result<f64> {
         return Ok(1.0);
     }
 
-    let kongswap = Principal::from_text(KONGSWAP_CANISTER)
+    let kongswap = Principal::from_text(KONGSWAP_BACKEND_ID)
         .map_err(|e| IcpiError::Other(format!("Invalid kongswap canister ID: {}", e)))?;
 
     // Query how much ckUSDT we'd get for 1 token (100_000_000 atomic units = 1.0 token)
@@ -71,12 +69,12 @@ mod tests {
 
     #[test]
     fn test_kongswap_canister_id() {
-        assert!(Principal::from_text(KONGSWAP_CANISTER).is_ok());
+        assert!(Principal::from_text(KONGSWAP_BACKEND_ID).is_ok());
     }
 
     #[test]
     fn test_ckusdt_price_is_one() {
         // Can't test async in unit test, but can verify logic path
-        assert_eq!(KONGSWAP_CANISTER, "2ipq2-uqaaa-aaaar-qailq-cai");
+        assert_eq!(KONGSWAP_BACKEND_ID, "2ipq2-uqaaa-aaaar-qailq-cai");
     }
 }
