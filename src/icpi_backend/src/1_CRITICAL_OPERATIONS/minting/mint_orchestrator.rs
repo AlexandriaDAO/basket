@@ -139,13 +139,34 @@ pub async fn complete_mint(caller: Principal, mint_id: String) -> Result<Nat> {
         store_pending_mint(mint)?;
     }
 
-    // Check for stale snapshot (warning only, does not block)
-    const MAX_SNAPSHOT_AGE_NANOS: u64 = 30_000_000_000; // 30 seconds
+    // Phase 4 Enhancement: Stricter staleness check with hard limit
+    // Check for stale snapshot (warning at 30s, error at 60s)
+    const SNAPSHOT_WARNING_AGE_NANOS: u64 = 30_000_000_000; // 30 seconds
+    const SNAPSHOT_MAX_AGE_NANOS: u64 = 60_000_000_000; // 60 seconds (hard limit)
     let snapshot_age = ic_cdk::api::time() - snapshot.timestamp;
-    if snapshot_age > MAX_SNAPSHOT_AGE_NANOS {
+    let snapshot_age_seconds = snapshot_age / 1_000_000_000;
+
+    if snapshot_age > SNAPSHOT_MAX_AGE_NANOS {
         ic_cdk::println!(
-            "⚠️ WARNING: Using snapshot {} seconds old (max recommended: 30s)",
-            snapshot_age / 1_000_000_000
+            "🚨 CRITICAL: Snapshot {} seconds old exceeds maximum allowed age (60s)",
+            snapshot_age_seconds
+        );
+        update_mint_status(&mint_id, MintStatus::Failed(
+            format!("Snapshot too stale ({} seconds old, max 60s)", snapshot_age_seconds)
+        ))?;
+        return Err(IcpiError::Validation(crate::infrastructure::errors::ValidationError::DataInconsistency {
+            reason: format!(
+                "Snapshot is {} seconds old, exceeding maximum allowed age of 60 seconds. \
+                This indicates severe network congestion or system issues. Please try again.",
+                snapshot_age_seconds
+            ),
+        }));
+    }
+
+    if snapshot_age > SNAPSHOT_WARNING_AGE_NANOS {
+        ic_cdk::println!(
+            "⚠️ WARNING: Using snapshot {} seconds old (recommended max: 30s, hard limit: 60s)",
+            snapshot_age_seconds
         );
     }
 
