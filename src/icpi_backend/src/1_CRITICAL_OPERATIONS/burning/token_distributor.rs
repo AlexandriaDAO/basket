@@ -105,23 +105,19 @@ async fn transfer_token(
     }
 }
 
+/// SECURITY FIX (Phase 1, H-2): Use TrackedToken::get_canister_id() for single source of truth
 fn get_token_canister(symbol: &str) -> Result<Principal> {
-    use crate::infrastructure::constants::*;
+    use crate::types::TrackedToken;
 
-    let id = match symbol {
-        "ckUSDT" => CKUSDT_CANISTER_ID,
-        "ALEX" => ALEX_CANISTER_ID,
-        "ZERO" => ZERO_CANISTER_ID,
-        "KONG" => KONG_CANISTER_ID,
-        "BOB" => BOB_CANISTER_ID,
-        _ => return Err(IcpiError::Burn(BurnError::TokenTransferFailed {
+    // Convert symbol to TrackedToken and get canister ID
+    let token = TrackedToken::from_symbol(symbol)
+        .map_err(|e| IcpiError::Burn(BurnError::TokenTransferFailed {
             token: symbol.to_string(),
             amount: "0".to_string(),
-            reason: "Unknown token".to_string(),
-        }))
-    };
+            reason: format!("Unknown token: {}", e),
+        }))?;
 
-    Principal::from_text(id)
+    token.get_canister_id()
         .map_err(|e| IcpiError::System(crate::infrastructure::errors::SystemError::StateCorrupted {
             reason: format!("Invalid canister ID for {}: {}", symbol, e),
         }))

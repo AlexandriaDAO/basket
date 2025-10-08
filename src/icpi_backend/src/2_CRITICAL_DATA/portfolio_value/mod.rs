@@ -84,30 +84,43 @@ pub async fn calculate_portfolio_value_atomic() -> Result<Nat> {
 /// Get USD value of a token amount
 /// Returns value in e6 (ckUSDT decimals)
 ///
-/// **ALPHA V1 LIMITATION**: Uses conservative hardcoded prices
-/// This is intentional for the Alpha deployment to ensure stability and prevent
-/// over-minting during experimental phase. These prices are set conservatively low
-/// to protect users during the initial testing period.
+/// **SECURITY FIX (Phase 1, C-1)**: Now uses live Kongswap prices via swap_amounts API
+/// This prevents systematic over/under-minting caused by hardcoded prices.
 ///
-/// **PRODUCTION NOTE**: Beta/Production versions will integrate with Kongswap
-/// price feeds for real-time market pricing.
-///
-/// Current hardcoded prices (conservative):
-/// - ALEX: $0.50 (actual market ~$1.00+)
-/// - ZERO: $0.10 (actual market ~$0.20+)
-/// - KONG: $0.05 (actual market ~$0.10+)
-/// - BOB: $0.01 (actual market ~$0.02+)
+/// Price discovery: Query Kongswap for token→ckUSDT exchange rate
+/// Fallback: Conservative hardcoded prices if Kongswap query fails
+/// Cache: 5-minute TTL to reduce inter-canister calls
 async fn get_token_usd_value(token_symbol: &str, amount: &Nat) -> Result<u64> {
-    // ALPHA V1: Conservative hardcoded prices to prevent over-minting
-    // These values are intentionally set below market prices for safety
-    let price_per_token_e6 = match token_symbol {
-        "ALEX" => 500_000u64,  // $0.50 per ALEX (conservative)
-        "ZERO" => 100_000u64,  // $0.10 per ZERO (conservative)
-        "KONG" => 50_000u64,   // $0.05 per KONG (conservative)
-        "BOB" => 10_000u64,    // $0.01 per BOB (conservative)
-        _ => {
-            ic_cdk::println!("  Unknown token {}, valuing at $0", token_symbol);
-            return Ok(0u64);
+    // Get live price from Kongswap
+    let token = TrackedToken::from_symbol(token_symbol)
+        .map_err(|e| crate::infrastructure::IcpiError::Other(e))?;
+
+    // Query live price via Kongswap pools module
+    let price_per_token_usdt = match crate::_3_KONG_LIQUIDITY::pools::get_token_price_in_usdt(&token).await {
+        Ok(price) => {
+            // Convert f64 price to e6 format (ckUSDT decimals)
+            let price_e6 = (price * 1_000_000.0) as u64;
+            ic_cdk::println!("  ✅ Live price for {}: ${:.6} ({} e6)", token_symbol, price, price_e6);
+            price_e6
+        },
+        Err(e) => {
+            // Fallback to conservative hardcoded prices if query fails
+            ic_cdk::println!("  ⚠️ Kongswap price query failed for {}: {}", token_symbol, e);
+            ic_cdk::println!("  Using conservative fallback price");
+
+            let fallback_price_e6 = match token_symbol {
+                "ALEX" => 500_000u64,  // $0.50 per ALEX (conservative fallback)
+                "ZERO" => 100_000u64,  // $0.10 per ZERO (conservative fallback)
+                "KONG" => 50_000u64,   // $0.05 per KONG (conservative fallback)
+                "BOB" => 10_000u64,    // $0.01 per BOB (conservative fallback)
+                _ => {
+                    ic_cdk::println!("  Unknown token {}, valuing at $0", token_symbol);
+                    return Ok(0u64);
+                }
+            };
+
+            ic_cdk::println!("  Fallback price for {}: ${:.6}", token_symbol, fallback_price_e6 as f64 / 1_000_000.0);
+            fallback_price_e6
         }
     };
 
@@ -125,13 +138,13 @@ async fn get_token_usd_value(token_symbol: &str, amount: &Nat) -> Result<u64> {
 
     // Calculate: (amount_e8 * price_e6) / 1e8 with overflow protection
     let amount_u128 = amount_e8 as u128;
-    let price_u128 = price_per_token_e6 as u128;
+    let price_u128 = price_per_token_usdt as u128;
 
     // Check for potential overflow before multiplication
     let product = amount_u128.checked_mul(price_u128)
         .ok_or_else(|| {
             crate::infrastructure::IcpiError::Other(
-                format!("Arithmetic overflow in price calculation: {} * {}", amount_e8, price_per_token_e6)
+                format!("Arithmetic overflow in price calculation: {} * {}", amount_e8, price_per_token_usdt)
             )
         })?;
 
@@ -151,7 +164,7 @@ async fn get_token_usd_value(token_symbol: &str, amount: &Nat) -> Result<u64> {
         amount_e8 as f64 / 100_000_000.0,
         token_symbol,
         value_e6 as f64 / 1_000_000.0,
-        price_per_token_e6 as f64 / 1_000_000.0
+        price_per_token_usdt as f64 / 1_000_000.0
     );
 
     Ok(value_e6)

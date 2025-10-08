@@ -142,28 +142,28 @@ pub async fn complete_mint(caller: Principal, mint_id: String) -> Result<Nat> {
     // Step 4: Calculate ICPI to mint using pre-deposit TVL
     update_mint_status(&mint_id, MintStatus::Calculating)?;
 
-    let icpi_to_mint = if current_supply == Nat::from(0u32) {
-        // Initial mint: 1 ICPI = 1 ckUSDT (adjust for decimals)
-        // ckUSDT has 6 decimals, ICPI has 8 decimals
-        // Use proper decimal conversion: 1 ckUSDT (e6) = 100 ICPI (e8)
-        crate::infrastructure::math::convert_decimals(
-            &pending_mint.amount,
-            crate::infrastructure::constants::CKUSDT_DECIMALS,
-            crate::infrastructure::constants::ICPI_DECIMALS
-        )?
-    } else {
-        // Formula: new_icpi = (deposit * current_supply) / current_tvl
-        match crate::infrastructure::math::multiply_and_divide(&pending_mint.amount, &current_supply, &current_tvl) {
-            Ok(amount) => amount,
-            Err(e) => {
-                handle_mint_failure(
-                    &mint_id,
-                    caller,
-                    pending_mint.amount.clone(),
-                    format!("Calculation failed: {}", e)
-                ).await?;
-                return Err(e);
-            }
+    // SECURITY FIX (Phase 1, H-3): Use pure_math calculate_mint_amount() with proper decimal handling
+    // This replaces the inline multiply_and_divide which had decimal discrepancies
+    let icpi_to_mint = match crate::infrastructure::math::calculate_mint_amount(
+        &pending_mint.amount,  // ckUSDT in e6 decimals
+        &current_supply,       // ICPI in e8 decimals
+        &current_tvl,          // ckUSDT in e6 decimals
+    ) {
+        Ok(amount) => {
+            ic_cdk::println!(
+                "  Mint calculation: deposit={} e6, supply={} e8, tvl={} e6 → icpi={} e8",
+                pending_mint.amount, current_supply, current_tvl, amount
+            );
+            amount
+        },
+        Err(e) => {
+            handle_mint_failure(
+                &mint_id,
+                caller,
+                pending_mint.amount.clone(),
+                format!("Mint calculation failed: {}", e)
+            ).await?;
+            return Err(e);
         }
     };
 
