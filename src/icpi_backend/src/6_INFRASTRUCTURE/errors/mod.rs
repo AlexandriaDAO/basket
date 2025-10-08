@@ -1,6 +1,6 @@
 //! Error types for the ICPI backend
 
-use candid::{CandidType, Deserialize};
+use candid::{CandidType, Deserialize, Nat};
 use serde::Serialize;
 
 // Result type alias for the entire application
@@ -82,6 +82,11 @@ pub enum TradingError {
     InvalidQuote { reason: String },
     SlippageTooHigh { expected: String, actual: String, max_allowed: String },
     ApprovalFailed { token: String, amount: String, reason: String },
+    InvalidTokenCanister { token: String, canister_id: String, reason: String },
+    KongswapError { operation: String, message: String },
+    SlippageExceeded { expected: Nat, actual: Nat, max_allowed: f64, actual_slippage: f64 },
+    SwapFailed { pay_token: String, receive_token: String, amount: Nat, reason: String },
+    InvalidSwapAmount { reason: String },
 }
 
 // Kongswap integration errors
