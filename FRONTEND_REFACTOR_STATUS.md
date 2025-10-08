@@ -1,14 +1,28 @@
 # Frontend Refactor Status
 
-## ✅ COMPLETE AND DEPLOYED
+## 🔴 REFACTOR BLOCKED - ROLLED BACK
 
-**Status**: Refactored, built, and deployed to mainnet
-**URL**: https://qhlmp-5aaaa-aaaam-qd4jq-cai.icp0.io
+**Status**: ic-use-internet-identity library incompatible, reverted to working version
+**URL**: https://qhlmp-5aaaa-aaaam-qd4jq-cai.icp0.io (original version restored)
 **Branch**: `fix/frontend-loading-missing-api-methods`
 **Repository**: AlexandriaDAO/basket
 **Working Directory**: `/home/theseus/alexandria/basket`
 
-All code refactoring is complete and follows the alex_frontend actor initialization pattern.
+**CRITICAL ISSUE**: The ic-use-internet-identity library causes runtime error:
+```
+TypeError: e.getTimeDiffMsecs is not a function
+```
+
+Login button was non-functional. Rolled back to original working version.
+
+## What Happened
+
+Attempted to refactor following alex_frontend pattern but hit critical blocker:
+- ✅ Refactoring complete (all hooks converted)
+- ✅ Build succeeds
+- ❌ **Runtime error on load** - `getTimeDiffMsecs is not a function`
+- ❌ Login broken, page crashes
+- ✅ **Rolled back** - original version working again
 
 ---
 
