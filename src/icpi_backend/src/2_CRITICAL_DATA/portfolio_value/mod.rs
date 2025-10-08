@@ -247,13 +247,7 @@ pub async fn get_portfolio_state_uncached() -> Result<IndexState> {
     for target in &target_allocations {
         // Find current position for this token
         let current_position = current_positions.iter()
-            .find(|pos| match (&pos.token, &target.token) {
-                (TrackedToken::ALEX, TrackedToken::ALEX) => true,
-                (TrackedToken::ZERO, TrackedToken::ZERO) => true,
-                (TrackedToken::KONG, TrackedToken::KONG) => true,
-                (TrackedToken::BOB, TrackedToken::BOB) => true,
-                _ => false,
-            });
+            .find(|pos| pos.token == target.token);
 
         let current_pct = current_position
             .map(|pos| pos.percentage)
@@ -266,7 +260,7 @@ pub async fn get_portfolio_state_uncached() -> Result<IndexState> {
         // Calculate deviation
         let deviation_pct = target.target_percentage - current_pct;
         let usd_difference = target.target_usd_value - current_usd;
-        let trade_size_usd = usd_difference.abs() * 0.1; // 10% of difference
+        let trade_size_usd = usd_difference.abs() * crate::infrastructure::TRADE_INTENSITY;
 
         deviations.push(AllocationDeviation {
             token: target.token.clone(),
