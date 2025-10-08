@@ -41,6 +41,30 @@ const queryClient = new QueryClient({
   },
 });
 
+// Helper function to create actor with authentication (P1: Extract to reduce duplication)
+async function createActorWithAuth(identity: Identity): Promise<{ agent: HttpAgent; actor: Actor }> {
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const host = isLocal ? 'http://localhost:4943' : 'https://icp-api.io';
+
+  const agent = new HttpAgent({
+    identity,
+    host,
+    ingressExpiryMs: 5 * 60 * 1000, // 5 minutes for long-running update calls
+  });
+
+  // P1: Make fetchRootKey await consistent
+  if (isLocal) {
+    await agent.fetchRootKey().catch(console.error);
+  }
+
+  const actor = Actor.createActor(icpiIdlFactory, {
+    agent,
+    canisterId: icpiCanisterId,
+  });
+
+  return { agent, actor };
+}
+
 function AppContent() {
   const [authClient, setAuthClient] = useState<AuthClient | null>(null);
   const [identity, setIdentity] = useState<Identity | null>(null);
@@ -74,24 +98,8 @@ function AppContent() {
           const identity = client.getIdentity();
           const newPrincipal = identity.getPrincipal().toString();
 
-          // Create actor atomically with auth state
-          const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-          const host = isLocal ? 'http://localhost:4943' : 'https://icp-api.io';
-
-          const newAgent = new HttpAgent({
-            identity,
-            host,
-            ingressExpiryMs: 5 * 60 * 1000,
-          });
-
-          if (isLocal) {
-            await newAgent.fetchRootKey().catch(console.error);
-          }
-
-          const newActor = Actor.createActor(icpiIdlFactory, {
-            agent: newAgent,
-            canisterId: icpiCanisterId,
-          });
+          // Create actor atomically with auth state using helper function
+          const { agent: newAgent, actor: newActor } = await createActorWithAuth(identity);
 
           // Set all auth-related state atomically
           setIdentity(identity);
@@ -104,7 +112,7 @@ function AppContent() {
         // Mark as initialized regardless of auth status
         setIsInitialized(true);
       } catch (error) {
-        console.error('Failed to initialize:', error);
+        console.warn('Failed to initialize:', error);
         setIsInitialized(true); // Still mark as initialized to show error state
       }
     }
@@ -122,26 +130,12 @@ function AppContent() {
     await authClient.login({
       identityProvider,
       maxTimeToLive: weekInNanoSeconds,
-      onSuccess: () => {
+      onSuccess: async () => {
         const identity = authClient.getIdentity();
         const newPrincipal = identity.getPrincipal().toString();
 
-        // Create actor atomically on login
-        const host = isLocal ? 'http://localhost:4943' : 'https://icp-api.io';
-        const newAgent = new HttpAgent({
-          identity,
-          host,
-          ingressExpiryMs: 5 * 60 * 1000,
-        });
-
-        if (isLocal) {
-          newAgent.fetchRootKey().catch(console.error);
-        }
-
-        const newActor = Actor.createActor(icpiIdlFactory, {
-          agent: newAgent,
-          canisterId: icpiCanisterId,
-        });
+        // Create actor atomically on login using helper function
+        const { agent: newAgent, actor: newActor } = await createActorWithAuth(identity);
 
         setIdentity(identity);
         setPrincipal(newPrincipal);
