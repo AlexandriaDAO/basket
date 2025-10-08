@@ -334,41 +334,59 @@ fn post_upgrade() {
 
 // ===== HELPER FUNCTIONS =====
 
-/// Verify caller is an admin principal
-///
-/// Admin principals can:
-/// - Trigger manual rebalancing
-/// - Clear caches
-/// - Access diagnostic functions
-///
-/// Current admins:
-/// - ev6xm-haaaa-aaaap-qqcza-cai (ICPI Backend itself) - For timer-triggered operations
-///
-/// Future expansion: Multi-sig or DAO governance for admin actions
-///
-/// Security Note: Frontend canister MUST NOT have admin access to prevent
-/// potential security vulnerabilities. Frontend should only call public query/update methods.
+/// Verify caller is an admin principal (uses admin module)
 fn require_admin() -> Result<()> {
-    const ADMIN_PRINCIPALS: &[&str] = &[
-        "ev6xm-haaaa-aaaap-qqcza-cai",  // ICPI Backend (self, for timers only)
-    ];
+    infrastructure::require_admin()
+}
 
-    let caller = ic_cdk::caller();
+// ===== ADMIN CONTROLS (Phase 2: H-1) =====
 
-    // Allow admin principals
-    if ADMIN_PRINCIPALS.iter()
-        .any(|&admin| Principal::from_text(admin).ok() == Some(caller))
-    {
-        return Ok(());
-    }
+/// Emergency pause - stops all minting and burning
+#[update]
+#[candid_method(update)]
+fn emergency_pause() -> Result<()> {
+    infrastructure::require_admin()?;
+    infrastructure::set_pause(true);
+    infrastructure::log_admin_action("EMERGENCY_PAUSE_ACTIVATED".to_string());
+    ic_cdk::println!("🚨 EMERGENCY PAUSE ACTIVATED");
+    Ok(())
+}
 
-    // For debugging: log unauthorized attempts
-    ic_cdk::println!("⚠️  Unauthorized admin access attempt from {}", caller);
+/// Resume operations after emergency pause
+#[update]
+#[candid_method(update)]
+fn emergency_unpause() -> Result<()> {
+    infrastructure::require_admin()?;
+    infrastructure::set_pause(false);
+    infrastructure::log_admin_action("EMERGENCY_PAUSE_DEACTIVATED".to_string());
+    ic_cdk::println!("✅ EMERGENCY PAUSE DEACTIVATED");
+    Ok(())
+}
 
-    Err(IcpiError::System(infrastructure::errors::SystemError::Unauthorized {
-        principal: caller.to_text(),
-        required_role: "admin (frontend or backend canister)".to_string(),
-    }))
+/// Check if system is currently paused
+#[query]
+#[candid_method(query)]
+fn is_emergency_paused() -> bool {
+    infrastructure::is_paused()
+}
+
+/// Get admin action log (admin only)
+#[query]
+#[candid_method(query)]
+fn get_admin_action_log() -> Result<Vec<infrastructure::AdminAction>> {
+    infrastructure::require_admin()?;
+    Ok(infrastructure::get_admin_log())
+}
+
+/// Clear all caches (admin only)
+#[update]
+#[candid_method(update)]
+fn clear_all_caches() -> Result<()> {
+    infrastructure::require_admin()?;
+    infrastructure::log_admin_action("CACHES_CLEARED".to_string());
+    _5_INFORMATIONAL::cache::clear_all_caches();
+    ic_cdk::println!("✅ All caches cleared");
+    Ok(())
 }
 
 // ===== CANDID EXPORT =====

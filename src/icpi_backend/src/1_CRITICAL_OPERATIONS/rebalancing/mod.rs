@@ -162,6 +162,9 @@ pub fn start_rebalancing_timer() {
 /// Executes a single rebalancing cycle immediately.
 /// Useful for testing or emergency interventions.
 pub async fn perform_rebalance() -> Result<String> {
+    // Check not paused (Phase 2: H-1 fix)
+    crate::infrastructure::check_not_paused()?;
+
     ic_cdk::println!("🔧 Manual rebalance triggered");
 
     // Check if rebalancing is already in progress
@@ -219,6 +222,13 @@ pub fn get_rebalancer_status() -> RebalancerStatus {
 /// 3. Execute buy or sell based on priority
 /// 4. Record result for history
 async fn hourly_rebalance() -> Result<String> {
+    // Check not paused (Phase 2: H-1 fix)
+    // Emergency pause should block ALL state-changing operations including rebalancing
+    if let Err(e) = crate::infrastructure::check_not_paused() {
+        ic_cdk::println!("⏭️ Skipping rebalance cycle: System is paused");
+        return Err(e);
+    }
+
     ic_cdk::println!("🔄 Starting hourly rebalance cycle...");
 
     // Get current portfolio state (includes deviations)

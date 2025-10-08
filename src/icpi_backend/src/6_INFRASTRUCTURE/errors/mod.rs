@@ -127,6 +127,7 @@ pub enum SystemError {
     StateCorrupted { reason: String },
     InterCanisterCallFailed { canister: String, method: String, reason: String },
     OperationInProgress { operation: String, user: String },
+    EmergencyPause,
 }
 
 // Query errors

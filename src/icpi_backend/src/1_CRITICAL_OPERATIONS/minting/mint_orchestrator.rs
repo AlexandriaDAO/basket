@@ -38,6 +38,9 @@ pub async fn initiate_mint(caller: Principal, amount: Nat) -> Result<String> {
 
 /// Complete a pending mint request
 pub async fn complete_mint(caller: Principal, mint_id: String) -> Result<Nat> {
+    // Check not paused (Phase 2: H-1)
+    crate::infrastructure::check_not_paused()?;
+
     // Acquire reentrancy guard - prevents concurrent mints by same user
     let _guard = crate::infrastructure::MintGuard::acquire(caller)?;
 

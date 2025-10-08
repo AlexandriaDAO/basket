@@ -32,6 +32,9 @@ pub struct BurnResult {
 // SECURITY: ICRC-2 prevents race conditions because each burn atomically pulls
 // from the specific user's approved tokens, not from a shared pool
 pub async fn burn_icpi(caller: Principal, amount: Nat) -> Result<BurnResult> {
+    // Check not paused (Phase 2: H-1)
+    crate::infrastructure::check_not_paused()?;
+
     // Acquire reentrancy guard - prevents concurrent burns by same user
     let _guard = crate::infrastructure::BurnGuard::acquire(caller)?;
 
@@ -64,7 +67,7 @@ pub async fn burn_icpi(caller: Principal, amount: Nat) -> Result<BurnResult> {
 
     match allowance_result {
         Ok((allowance,)) => {
-            let required_fee = Nat::from(crate::infrastructure::constants::MINT_FEE_E6);
+            let required_fee = Nat::from(crate::infrastructure::constants::MINT_FEE_AMOUNT);
             if allowance.allowance < required_fee {
                 ic_cdk::println!(
                     "⚠️ Insufficient fee approval: user approved {} e6, required {} e6",
