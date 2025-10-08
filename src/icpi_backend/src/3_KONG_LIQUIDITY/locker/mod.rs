@@ -7,8 +7,7 @@
 //! Used for calculating TVL from locked liquidity positions.
 
 use candid::Principal;
-use crate::infrastructure::{Result, IcpiError};
-use crate::infrastructure::constants::KONG_LOCKER_ID;
+use crate::infrastructure::{Result, IcpiError, KONG_LOCKER_ID};
 
 /// Get all lock canisters from kong_locker
 ///

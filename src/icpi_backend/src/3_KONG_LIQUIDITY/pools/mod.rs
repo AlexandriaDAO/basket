@@ -5,8 +5,7 @@
 
 use candid::{Nat, Principal};
 use num_traits::ToPrimitive;
-use crate::infrastructure::{Result, IcpiError};
-use crate::infrastructure::constants::KONGSWAP_BACKEND_ID;
+use crate::infrastructure::{Result, IcpiError, KONGSWAP_BACKEND_ID};
 use crate::types::TrackedToken;
 use crate::types::kongswap::SwapAmountsResult;
 
@@ -53,11 +52,12 @@ pub async fn get_token_price_in_usdt(token: &TrackedToken) -> Result<f64> {
 
             let price_usdt = receive_e6 as f64 / 1_000_000.0; // e6 → f64
 
-            // Sanity check: Prices should be reasonable (between $0.000001 and $1M)
-            if price_usdt <= 0.0 || price_usdt > 1_000_000.0 {
+            // Sanity check: Prices should be reasonable for crypto assets
+            // Range: $0.000001 (very small tokens) to $100 (large tokens like BTC)
+            if price_usdt <= 0.0 || price_usdt > 100.0 {
                 ic_cdk::println!("⚠️ Unrealistic price for {}: {} ckUSDT", symbol, price_usdt);
                 return Err(IcpiError::Other(format!(
-                    "Unrealistic price for {}: {} (expected 0.000001 to 1,000,000)",
+                    "Unrealistic price for {}: {} (expected 0.000001 to 100)",
                     symbol, price_usdt
                 )));
             }
