@@ -132,7 +132,7 @@ service : {
 
     // Index State & Data
     get_index_state : () -> (variant { Ok : IndexState; Err : text });
-    get_index_state_cached : () -> (variant { Ok : IndexState; Err : text }) query;
+    get_index_state_cached : () -> (variant { Ok : IndexState; Err : text });
     get_tvl_summary : () -> (variant { Ok : TVLSummary; Err : text });
     get_token_metadata : () -> (variant { Ok : vec TokenMetadata; Err : text }) query;
     get_tracked_tokens : () -> (vec text) query;

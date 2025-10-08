@@ -33,13 +33,17 @@ pub struct CachedLockCanisters {
 #[derive(CandidType, Deserialize, Serialize, Debug, Clone)]
 pub struct TokenTvl {
     pub token: TrackedToken,
-    pub locked_value_usd: f64,
+    pub tvl_usd: f64,  // Renamed from locked_value_usd to match .did file
     pub percentage: f64,
 }
 
 #[derive(CandidType, Deserialize, Serialize, Debug, Clone)]
 pub struct TvlSummary {
     pub total_tvl_usd: f64,
-    pub token_tvls: Vec<TokenTvl>,
+    pub tokens: Vec<TokenTvl>,  // Renamed from token_tvls to match .did file
     pub timestamp: u64,
 }
+
+// Aliases for .did file compatibility (all-caps TVL)
+pub type TokenTVLSummary = TokenTvl;
+pub type TVLSummary = TvlSummary;
