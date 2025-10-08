@@ -38,7 +38,7 @@ pub async fn get_token_price_in_usdt(token: &TrackedToken) -> Result<f64> {
     let (result,): (SwapAmountsResult,) = ic_cdk::call(
         kongswap,
         "swap_amounts",
-        (symbol, one_token.clone(), "ckUSDT".to_string())
+        (symbol, one_token, "ckUSDT".to_string()) // Removed unnecessary clone
     ).await.map_err(|e| {
         ic_cdk::println!("Failed to query kongswap.swap_amounts for {}: {:?}", symbol, e);
         IcpiError::Other(format!("Kongswap price query failed: {:?}", e.1))
@@ -46,12 +46,14 @@ pub async fn get_token_price_in_usdt(token: &TrackedToken) -> Result<f64> {
 
     match result {
         SwapAmountsResult::Ok(reply) => {
-            // reply.receive_amount is in ckUSDT atomic units (e6 decimals)
-            // Convert to f64: divide by 1_000_000
+            // Decimal handling:
+            // - Input: 100_000_000 (1.0 token in e8 decimals for ALEX/ZERO/KONG/BOB)
+            // - Output: ckUSDT amount in e6 decimals (ckUSDT uses 6 decimals, not 8)
+            // - Conversion: divide by 1_000_000 to get float price
             let receive_e6 = reply.receive_amount.0.to_u64()
                 .ok_or_else(|| IcpiError::Other(format!("Price amount overflow for {}", symbol)))?;
 
-            let price_usdt = receive_e6 as f64 / 1_000_000.0;
+            let price_usdt = receive_e6 as f64 / 1_000_000.0; // e6 → f64
 
             ic_cdk::println!("✅ {} price: {} ckUSDT", symbol, price_usdt);
             Ok(price_usdt)

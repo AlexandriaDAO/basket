@@ -39,12 +39,12 @@ pub async fn calculate_kong_locker_tvl() -> Result<Vec<(TrackedToken, f64)>> {
         ]);
     }
 
-    // Initialize TVL accumulator for each token
+    // Initialize TVL accumulator for each tracked token
+    let tracked_tokens = vec![TrackedToken::ALEX, TrackedToken::ZERO, TrackedToken::KONG, TrackedToken::BOB];
     let mut tvl_map: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
-    tvl_map.insert("ALEX".to_string(), 0.0);
-    tvl_map.insert("ZERO".to_string(), 0.0);
-    tvl_map.insert("KONG".to_string(), 0.0);
-    tvl_map.insert("BOB".to_string(), 0.0);
+    for token in &tracked_tokens {
+        tvl_map.insert(token.to_symbol().to_string(), 0.0);
+    }
 
     let kongswap = Principal::from_text(KONGSWAP_CANISTER)
         .map_err(|e| IcpiError::Other(format!("Invalid kongswap canister ID: {}", e)))?;
@@ -78,21 +78,39 @@ pub async fn calculate_kong_locker_tvl() -> Result<Vec<(TrackedToken, f64)>> {
 
                 // Process each LP balance entry
                 for balance_entry in balances {
-                    if let UserBalancesReply::LP(lp) = balance_entry {
-                        // Check if this is a tracked token by looking at symbol_0 or symbol_1
-                        for tracked_symbol in ["ALEX", "ZERO", "KONG", "BOB"] {
-                            if lp.symbol_0 == tracked_symbol || lp.symbol_1 == tracked_symbol {
-                                // Add USD value to accumulator
-                                *tvl_map.get_mut(tracked_symbol).unwrap() += lp.usd_balance;
+                    let UserBalancesReply::LP(lp) = balance_entry;  // UserBalancesReply only has LP variant
 
-                                ic_cdk::println!(
-                                    "  {} in {}: ${:.2}",
-                                    tracked_symbol,
-                                    &lock_id[..8],
-                                    lp.usd_balance
-                                );
-                                break;
-                            }
+                    // CRITICAL: LP positions have two sides (e.g., ALEX/ckUSDT)
+                    // usd_balance = total USD value of both sides
+                    // usd_amount_0 = USD value of symbol_0 side only
+                    // usd_amount_1 = USD value of symbol_1 side only
+                    // We must use usd_amount_X to avoid double-counting!
+
+                    // Check symbol_0 for tracked tokens
+                    for token in &tracked_tokens {
+                        let tracked_symbol = token.to_symbol();
+                        if lp.symbol_0 == tracked_symbol {
+                            // Add only this token's side of the LP
+                            *tvl_map.get_mut(tracked_symbol).unwrap() += lp.usd_amount_0;
+
+                            ic_cdk::println!(
+                                "  {} (side 0) in {}: ${:.2}",
+                                tracked_symbol,
+                                &lock_id[..8],
+                                lp.usd_amount_0
+                            );
+                            break;
+                        } else if lp.symbol_1 == tracked_symbol {
+                            // Add only this token's side of the LP
+                            *tvl_map.get_mut(tracked_symbol).unwrap() += lp.usd_amount_1;
+
+                            ic_cdk::println!(
+                                "  {} (side 1) in {}: ${:.2}",
+                                tracked_symbol,
+                                &lock_id[..8],
+                                lp.usd_amount_1
+                            );
+                            break;
                         }
                     }
                 }
@@ -100,8 +118,8 @@ pub async fn calculate_kong_locker_tvl() -> Result<Vec<(TrackedToken, f64)>> {
             Ok((lock_id, UserBalancesResult::Err(e))) => {
                 ic_cdk::println!("  ⚠️  Kongswap error for {}: {}", &lock_id[..8], e);
             }
-            Err(e) => {
-                // Already logged in the query
+            Err(_e) => {
+                // Error already logged in the query
                 continue;
             }
         }
