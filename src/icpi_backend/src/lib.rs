@@ -83,8 +83,10 @@ async fn get_index_state() -> Result<types::portfolio::IndexState> {
     Ok(_5_INFORMATIONAL::display::get_index_state_cached().await)
 }
 
-#[update]
-#[candid_method(update)]
+/// BUGFIX (PR #8 Review): Restore query annotation for cached read
+/// This was incorrectly marked as update, causing unnecessary cycles cost and slower response
+#[query]
+#[candid_method(query)]
 async fn get_index_state_cached() -> Result<types::portfolio::IndexState> {
     Ok(_5_INFORMATIONAL::display::get_index_state_cached().await)
 }
@@ -131,17 +133,12 @@ fn clear_caches() -> Result<String> {
 /// ```
 // ===== ADDITIONAL API ENDPOINTS =====
 
+/// BUGFIX (PR #8 Review): Use getter function instead of direct PENDING_MINTS access
 #[query]
 #[candid_method(query)]
 fn check_mint_status(mint_id: String) -> Result<_1_CRITICAL_OPERATIONS::minting::MintStatus> {
-    // Query mint state from storage
-    use _1_CRITICAL_OPERATIONS::minting::mint_state::PENDING_MINTS;
-    PENDING_MINTS.with(|mints| {
-        let mints = mints.borrow();
-        mints.get(&mint_id)
-            .map(|mint| mint.status.clone())
-            .ok_or(infrastructure::IcpiError::Other(format!("Mint {} not found", mint_id)))
-    })
+    _1_CRITICAL_OPERATIONS::minting::mint_state::get_mint_status(&mint_id)?
+        .ok_or(infrastructure::IcpiError::Other(format!("Mint {} not found", mint_id)))
 }
 
 #[update]
