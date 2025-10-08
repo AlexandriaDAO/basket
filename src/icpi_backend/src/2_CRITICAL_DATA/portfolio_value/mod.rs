@@ -84,32 +84,27 @@ pub async fn calculate_portfolio_value_atomic() -> Result<Nat> {
 /// Get USD value of a token amount
 /// Returns value in e6 (ckUSDT decimals)
 ///
-/// **ALPHA V1 LIMITATION**: Uses conservative hardcoded prices
-/// This is intentional for the Alpha deployment to ensure stability and prevent
-/// over-minting during experimental phase. These prices are set conservatively low
-/// to protect users during the initial testing period.
-///
-/// **PRODUCTION NOTE**: Beta/Production versions will integrate with Kongswap
-/// price feeds for real-time market pricing.
-///
-/// Current hardcoded prices (conservative):
-/// - ALEX: $0.50 (actual market ~$1.00+)
-/// - ZERO: $0.10 (actual market ~$0.20+)
-/// - KONG: $0.05 (actual market ~$0.10+)
-/// - BOB: $0.01 (actual market ~$0.02+)
+/// Queries Kongswap for real-time token prices and calculates USD value.
+/// Returns error if pricing fails - no fallback prices to ensure accuracy.
 async fn get_token_usd_value(token_symbol: &str, amount: &Nat) -> Result<u64> {
-    // ALPHA V1: Conservative hardcoded prices to prevent over-minting
-    // These values are intentionally set below market prices for safety
-    let price_per_token_e6 = match token_symbol {
-        "ALEX" => 500_000u64,  // $0.50 per ALEX (conservative)
-        "ZERO" => 100_000u64,  // $0.10 per ZERO (conservative)
-        "KONG" => 50_000u64,   // $0.05 per KONG (conservative)
-        "BOB" => 10_000u64,    // $0.01 per BOB (conservative)
+    // Get token enum from symbol
+    let token = match token_symbol {
+        "ALEX" => TrackedToken::ALEX,
+        "ZERO" => TrackedToken::ZERO,
+        "KONG" => TrackedToken::KONG,
+        "BOB" => TrackedToken::BOB,
         _ => {
-            ic_cdk::println!("  Unknown token {}, valuing at $0", token_symbol);
-            return Ok(0u64);
+            return Err(crate::infrastructure::IcpiError::Other(
+                format!("Unknown token: {}", token_symbol)
+            ));
         }
     };
+
+    // Get real-time price from Kongswap - fail if unavailable
+    let price_usdt_f64 = crate::_3_KONG_LIQUIDITY::pools::get_token_price_in_usdt(&token).await?;
+
+    // Convert price to e6 format (ckUSDT decimals)
+    let price_per_token_e6 = (price_usdt_f64 * 1_000_000.0) as u64;
 
     // Safely convert amount to u64, returning error on overflow
     let amount_e8 = amount.0.to_u64()

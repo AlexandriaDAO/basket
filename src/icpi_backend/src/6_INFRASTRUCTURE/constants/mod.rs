@@ -18,17 +18,12 @@ pub const BOB_CANISTER_ID: &str = "7pail-xaaaa-aaaas-aabmq-cai";
 // ===== Token Decimals =====
 pub const ICPI_DECIMALS: u32 = 8;
 pub const CKUSDT_DECIMALS: u32 = 6;
-pub const ALEX_DECIMALS: u32 = 8;
-pub const ZERO_DECIMALS: u32 = 8;
-pub const KONG_DECIMALS: u32 = 8;
-pub const BOB_DECIMALS: u32 = 8;
 
 // ===== Minting Constants =====
 pub const MIN_MINT_AMOUNT: u64 = 100_000; // 0.1 ckUSDT (e6)
 pub const MAX_MINT_AMOUNT: u64 = 100_000_000_000; // 100k ckUSDT
 pub const MINT_TIMEOUT_NANOS: u64 = 180_000_000_000; // 3 minutes
 pub const MINT_FEE_AMOUNT: u64 = 100_000; // 0.1 ckUSDT
-pub const MINT_FEE_E6: u64 = 100_000; // 0.1 ckUSDT (alias for compatibility)
 pub const FEE_RECIPIENT: &str = "e454q-riaaa-aaaap-qqcyq-cai";
 
 // ===== Burning Constants =====

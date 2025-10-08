@@ -111,16 +111,13 @@ type RebalancerStatus = record {
 };
 
 service : {
-    // ICRC1 Token Standard (proxied to ICPI ledger canister)
+    // ICRC1 Token Standard (backend metadata only - query ledger for balances)
     icrc1_name : () -> (text) query;
     icrc1_symbol : () -> (text) query;
     icrc1_decimals : () -> (nat8) query;
-    icrc1_total_supply : () -> (nat);  // Update method - queries real ledger
-    icrc1_balance_of : (Account) -> (nat);  // Update method - queries real ledger
     icrc1_fee : () -> (nat) query;
     icrc1_metadata : () -> (vec record { text; MetadataValue }) query;
     icrc1_supported_standards : () -> (vec StandardRecord) query;
-    get_all_balances : () -> (vec record { principal; nat }) query;
 
     // Minting
     initiate_mint : (nat) -> (variant { Ok : text; Err : text });
@@ -136,17 +133,20 @@ service : {
     get_tvl_summary : () -> (variant { Ok : TVLSummary; Err : text });
     get_token_metadata : () -> (variant { Ok : vec TokenMetadata; Err : text }) query;
     get_tracked_tokens : () -> (vec text) query;
-    get_simple_test : () -> (text) query;
-    test_simple_update : () -> (text);
 
     // Rebalancer
     get_rebalancer_status : () -> (RebalancerStatus) query;
-    debug_rebalancer : () -> (text);
+    perform_rebalance : () -> (variant { Ok : text; Err : text });
+    trigger_manual_rebalance : () -> (variant { Ok : text; Err : text });
 
     // System Info
     get_canister_id : () -> (principal) query;
     get_cycles_balance : () -> (nat) query;
-
-    // Legacy
-    greet : (text) -> (text) query;
+    clear_caches : () -> (variant { Ok : text; Err : text });
+    get_health_status : () -> (record {
+        version : text;
+        tracked_tokens : vec text;
+        last_rebalance : opt nat64;
+        cycles_balance : nat;
+    }) query;
 }

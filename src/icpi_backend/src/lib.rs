@@ -190,23 +190,6 @@ fn get_token_metadata() -> Result<Vec<types::tokens::TokenMetadata>> {
     tokens
 }
 
-#[query]
-#[candid_method(query)]
-fn get_simple_test() -> String {
-    format!("Backend is responding at {}", ic_cdk::api::time())
-}
-
-#[update]
-#[candid_method(update)]
-fn test_simple_update() -> String {
-    format!("Update call succeeded at {}", ic_cdk::api::time())
-}
-
-#[update]
-#[candid_method(update)]
-async fn debug_rebalancer() -> String {
-    format!("Rebalancer status: {:?}", _1_CRITICAL_OPERATIONS::rebalancing::get_rebalancer_status())
-}
 
 #[query]
 #[candid_method(query)]
@@ -218,12 +201,6 @@ fn get_canister_id() -> Principal {
 #[candid_method(query)]
 fn get_cycles_balance() -> Nat {
     Nat::from(ic_cdk::api::canister_balance128())
-}
-
-#[query]
-#[candid_method(query)]
-fn greet(name: String) -> String {
-    format!("Hello, {}! Welcome to ICPI.", name)
 }
 
 // ===== ICRC1 TOKEN STANDARD ENDPOINTS =====
@@ -244,38 +221,6 @@ fn icrc1_symbol() -> String {
 #[candid_method(query)]
 fn icrc1_decimals() -> u8 {
     8
-}
-
-#[update]
-#[candid_method(update)]
-async fn icrc1_total_supply() -> Nat {
-    match _2_CRITICAL_DATA::supply_tracker::get_icpi_supply_uncached().await {
-        Ok(supply) => supply,
-        Err(e) => {
-            ic_cdk::println!("⚠️ Failed to get ICPI total supply: {}", e);
-            Nat::from(0u64)
-        }
-    }
-}
-
-#[update]
-#[candid_method(update)]
-async fn icrc1_balance_of(account: types::icrc::Account) -> Nat {
-    // Query ICPI token ledger for balance
-    let icpi_canister_id = Principal::from_text(types::tokens::ICPI_CANISTER_ID)
-        .expect("ICPI_CANISTER_ID constant is valid");
-
-    match ic_cdk::call::<(types::icrc::Account,), (Nat,)>(
-        icpi_canister_id,
-        "icrc1_balance_of",
-        (account,)
-    ).await {
-        Ok((balance,)) => balance,
-        Err(e) => {
-            ic_cdk::println!("⚠️ Failed to query ICPI balance: {:?}", e);
-            Nat::from(0u64)
-        }
-    }
 }
 
 #[query]
@@ -304,43 +249,6 @@ fn icrc1_supported_standards() -> Vec<types::icrc::StandardRecord> {
             url: "https://github.com/dfinity/ICRC-1".to_string(),
         },
     ]
-}
-
-#[query]
-#[candid_method(query)]
-fn get_all_balances() -> Vec<(Principal, Nat)> {
-    // This would require maintaining a balance map, which we don't do
-    // Return empty for now as balances are in the ICPI token canister
-    vec![]
-}
-
-// ===== TESTING =====
-
-#[update]
-#[candid_method(update)]
-async fn test_kong_liquidity() -> Result<String> {
-    ic_cdk::println!("🧪 Testing Kong Liquidity integration...");
-
-    // Test 1: Get TVL from Kong Locker
-    let tvl_result = _3_KONG_LIQUIDITY::tvl::calculate_kong_locker_tvl().await;
-    let tvl = match tvl_result {
-        Ok(data) => data,
-        Err(e) => return Err(IcpiError::Other(format!("TVL calculation failed: {}", e))),
-    };
-
-    // Test 2: Get ALEX price from Kongswap
-    let alex_price = _3_KONG_LIQUIDITY::pools::get_token_price_in_usdt(&types::TrackedToken::ALEX).await?;
-
-    // Format results
-    let mut output = String::from("Kong Liquidity Integration Test Results:\n\n");
-    output.push_str("TVL by Token:\n");
-    for (token, usd_value) in &tvl {
-        output.push_str(&format!("  {}: ${:.2}\n", token.to_symbol(), usd_value));
-    }
-    output.push_str(&format!("\nALEX Price: {} ckUSDT\n", alex_price));
-    output.push_str("\n✅ Zone 3 integration working!");
-
-    Ok(output)
 }
 
 // ===== INITIALIZATION =====
@@ -434,27 +342,16 @@ fn post_upgrade() {
 /// - Clear caches
 /// - Access diagnostic functions
 ///
-/// **ALPHA V1 LIMITATION**: Currently only the backend canister itself has admin access
-/// This is sufficient for Alpha v1 since:
-/// - Rebalancing is not yet implemented (stubbed)
-/// - Cache clearing can be triggered via canister upgrade if needed
-/// - No critical admin operations required during Alpha testing
-///
-/// **PRODUCTION NOTE**: Beta/Production versions should add:
-/// - Deployer principal for manual interventions
-/// - Controller principals for emergency operations
-/// - Multi-sig or DAO governance for admin actions
-///
 /// Current admins:
 /// - ev6xm-haaaa-aaaap-qqcza-cai (ICPI Backend itself) - For timer-triggered operations
+///
+/// Future expansion: Multi-sig or DAO governance for admin actions
 ///
 /// Security Note: Frontend canister MUST NOT have admin access to prevent
 /// potential security vulnerabilities. Frontend should only call public query/update methods.
 fn require_admin() -> Result<()> {
     const ADMIN_PRINCIPALS: &[&str] = &[
         "ev6xm-haaaa-aaaap-qqcza-cai",  // ICPI Backend (self, for timers only)
-        // ALPHA V1: No manual admin principals added yet
-        // Beta will add controller/deployer principals here
     ];
 
     let caller = ic_cdk::caller();

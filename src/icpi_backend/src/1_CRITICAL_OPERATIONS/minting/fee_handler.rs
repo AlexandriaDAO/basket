@@ -2,12 +2,12 @@
 
 use candid::{Nat, Principal};
 use crate::infrastructure::{Result, IcpiError, MintError};
-use crate::infrastructure::constants::{MINT_FEE_E6, CKUSDT_CANISTER_ID};
+use crate::infrastructure::constants::{MINT_FEE_AMOUNT, CKUSDT_CANISTER_ID};
 use crate::types::{Account, TransferArgs};
 
 /// Collect minting fee from user
 pub async fn collect_mint_fee(user: Principal) -> Result<Nat> {
-    let fee_amount = Nat::from(MINT_FEE_E6);
+    let fee_amount = Nat::from(MINT_FEE_AMOUNT);
 
     ic_cdk::println!("Collecting mint fee of {} from {}", fee_amount, user);
 
