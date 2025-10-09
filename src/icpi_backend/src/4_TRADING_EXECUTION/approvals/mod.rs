@@ -16,7 +16,7 @@
 
 use candid::{Nat, Principal};
 use crate::types::{TrackedToken, icrc::{Account, ApproveArgs, ApproveResult}};
-use crate::infrastructure::{Result, IcpiError, errors::TradingError, KONGSWAP_BACKEND_ID};
+use crate::infrastructure::{Result, IcpiError, errors::TradingError, KONGSWAP_BACKEND_ID, BURN_FEE_BUFFER};
 
 /// Token approval expiry time in nanoseconds (15 minutes)
 /// Increased from 5 minutes to handle potential network congestion
@@ -65,10 +65,16 @@ pub async fn approve_token_for_swap(
             message: format!("Invalid Kongswap principal: {}", e),
         }))?;
 
+    // CRITICAL: Approve amount + transfer fee because Kongswap's transfer_from
+    // deducts the fee from allowance before checking sufficiency
+    let approval_amount = amount.clone() + Nat::from(BURN_FEE_BUFFER);
+
     ic_cdk::println!(
-        "📝 Approving {} {} for Kongswap (canister: {})",
-        amount,
+        "📝 Approving {} {} for Kongswap (trade: {}, fee: {}, canister: {})",
+        approval_amount,
         token.to_symbol(),
+        amount,
+        BURN_FEE_BUFFER,
         KONGSWAP_BACKEND_ID
     );
 
@@ -79,7 +85,7 @@ pub async fn approve_token_for_swap(
             owner: kongswap_principal,
             subaccount: None,
         },
-        amount: amount.clone(),
+        amount: approval_amount,
         expected_allowance: None,
         expires_at: Some(ic_cdk::api::time() + APPROVAL_EXPIRY_NANOS),
         fee: None, // Use default
