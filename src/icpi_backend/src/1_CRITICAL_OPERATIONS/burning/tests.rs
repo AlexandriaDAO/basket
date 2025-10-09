@@ -1,34 +1,33 @@
 //! Comprehensive tests for burning logic (Phase 4)
 //! Tests for M-2 (fee approval) and M-3 (maximum burn limit)
+//!
+//! DESIGN: These tests validate the burn limit logic by testing percentage calculations
+//! using the same arithmetic as the actual implementation, without accessing internal
+//! Nat representation.
 
 #[cfg(test)]
 mod burn_limit_tests {
     use candid::Nat;
-    use num_traits::ToPrimitive;
+
+    /// Helper to check if burn amount exceeds limit without accessing Nat internals
+    /// Uses only public Nat API (arithmetic operations and comparisons)
+    fn exceeds_10_percent_limit(amount: &Nat, supply: &Nat) -> bool {
+        // amount * 100 > supply * 10?
+        let amount_scaled = amount.clone() * Nat::from(100u64);
+        let supply_scaled = supply.clone() * Nat::from(10u64);
+        amount_scaled > supply_scaled
+    }
 
     /// Test the maximum burn limit calculation (M-3)
     /// Ensures integer arithmetic works correctly and prevents burning > 10% of supply
     #[test]
     fn test_burn_exactly_at_10_percent_limit() {
-        // Simulate burn limit check with pure integer math
-        // This replicates the logic in mod.rs lines 100-137
-
         let supply = Nat::from(1_000_000_000u64); // 1B tokens
         let amount = Nat::from(100_000_000u64); // Exactly 10%
 
-        const MAX_BURN_PERCENTAGE_NUMERATOR: u128 = 10;
-        const PERCENTAGE_DENOMINATOR: u128 = 100;
-
-        let supply_u128 = supply.0.to_u128().unwrap();
-        let amount_u128 = amount.0.to_u128().unwrap();
-
-        // Check: amount * 100 > supply * 10?
-        let amount_scaled = amount_u128.checked_mul(PERCENTAGE_DENOMINATOR).unwrap();
-        let supply_scaled = supply_u128.checked_mul(MAX_BURN_PERCENTAGE_NUMERATOR).unwrap();
-
-        // At exactly 10%, amount_scaled == supply_scaled (not >), so should PASS
-        assert_eq!(amount_scaled, supply_scaled, "At 10%, scaled values should be equal");
-        assert!(!(amount_scaled > supply_scaled), "Exactly 10% should be allowed");
+        // At exactly 10%, should NOT exceed limit
+        assert!(!exceeds_10_percent_limit(&amount, &supply),
+            "Exactly 10% should be allowed");
     }
 
     #[test]
@@ -36,40 +35,20 @@ mod burn_limit_tests {
         let supply = Nat::from(1_000_000_000u64); // 1B tokens
         let amount = Nat::from(100_000_001u64); // 10.0000001%
 
-        const MAX_BURN_PERCENTAGE_NUMERATOR: u128 = 10;
-        const PERCENTAGE_DENOMINATOR: u128 = 100;
-
-        let supply_u128 = supply.0.to_u128().unwrap();
-        let amount_u128 = amount.0.to_u128().unwrap();
-
-        let amount_scaled = amount_u128.checked_mul(PERCENTAGE_DENOMINATOR).unwrap();
-        let supply_scaled = supply_u128.checked_mul(MAX_BURN_PERCENTAGE_NUMERATOR).unwrap();
-
-        // Just over 10%, amount_scaled > supply_scaled, should FAIL
-        assert!(amount_scaled > supply_scaled, "10.0000001% should be rejected");
+        // Just over 10%, should exceed limit
+        assert!(exceeds_10_percent_limit(&amount, &supply),
+            "10.0000001% should be rejected");
     }
 
     #[test]
     fn test_burn_with_very_large_supply() {
-        // Test with supply near u64::MAX to ensure no overflow
+        // Test with supply near u64::MAX to ensure Nat arithmetic doesn't overflow
         let supply = Nat::from(18_446_744_073_709_551_615u64); // u64::MAX
         let amount = Nat::from(1_844_674_407_370_955_161u64); // ~10%
 
-        const MAX_BURN_PERCENTAGE_NUMERATOR: u128 = 10;
-        const PERCENTAGE_DENOMINATOR: u128 = 100;
-
-        let supply_u128 = supply.0.to_u128().unwrap();
-        let amount_u128 = amount.0.to_u128().unwrap();
-
-        // This should NOT overflow because we use u128
-        let amount_scaled = amount_u128.checked_mul(PERCENTAGE_DENOMINATOR);
-        let supply_scaled = supply_u128.checked_mul(MAX_BURN_PERCENTAGE_NUMERATOR);
-
-        assert!(amount_scaled.is_some(), "Should not overflow with u128");
-        assert!(supply_scaled.is_some(), "Should not overflow with u128");
-
-        // Verify the comparison works
-        assert!(!(amount_scaled.unwrap() > supply_scaled.unwrap()), "Should be within limit");
+        // Should handle large values without overflow (Nat uses BigUint internally)
+        assert!(!exceeds_10_percent_limit(&amount, &supply),
+            "Should handle large values without overflow");
     }
 
     #[test]
@@ -78,33 +57,29 @@ mod burn_limit_tests {
         let supply = Nat::from(500_000u64);
         let amount = Nat::from(500_000u64); // 100%
 
-        const MAX_BURN_PERCENTAGE_NUMERATOR: u128 = 10;
-        const PERCENTAGE_DENOMINATOR: u128 = 100;
-
-        let supply_u128 = supply.0.to_u128().unwrap();
-        let amount_u128 = amount.0.to_u128().unwrap();
-
-        let amount_scaled = amount_u128.checked_mul(PERCENTAGE_DENOMINATOR).unwrap();
-        let supply_scaled = supply_u128.checked_mul(MAX_BURN_PERCENTAGE_NUMERATOR).unwrap();
-
-        // 100% should definitely be rejected
-        assert!(amount_scaled > supply_scaled, "100% burn should be rejected");
+        // 100% should definitely exceed the 10% limit
+        assert!(exceeds_10_percent_limit(&amount, &supply),
+            "100% burn should be rejected");
     }
 
     #[test]
     fn test_maximum_allowed_burn_calculation() {
-        // Verify the maximum burn calculation doesn't overflow
-        let supply_u128 = 1_000_000_000u128;
+        // Test calculating the exact maximum allowed burn (10% of supply)
+        let supply = Nat::from(1_000_000_000u64); // 1B
+        let max_allowed = supply.clone() * Nat::from(10u64) / Nat::from(100u64);
 
-        const MAX_BURN_PERCENTAGE_NUMERATOR: u128 = 10;
-        const PERCENTAGE_DENOMINATOR: u128 = 100;
+        // Should equal 100M
+        assert_eq!(max_allowed, Nat::from(100_000_000u64),
+            "10% of 1B should be 100M");
 
-        let maximum_burn = supply_u128
-            .checked_mul(MAX_BURN_PERCENTAGE_NUMERATOR)
-            .and_then(|v| v.checked_div(PERCENTAGE_DENOMINATOR));
+        // Verify this amount doesn't exceed limit
+        assert!(!exceeds_10_percent_limit(&max_allowed, &supply),
+            "Exactly 10% should be allowed");
 
-        assert!(maximum_burn.is_some(), "Maximum burn calculation should not overflow");
-        assert_eq!(maximum_burn.unwrap(), 100_000_000u128, "10% of 1B should be 100M");
+        // But one more should exceed
+        let one_over = max_allowed + Nat::from(1u64);
+        assert!(exceeds_10_percent_limit(&one_over, &supply),
+            "Even 1 token over 10% should be rejected");
     }
 
     #[test]
@@ -119,21 +94,13 @@ mod burn_limit_tests {
         // 10.01% = 1,001,000
         let amount_fail = Nat::from(1_001_000u64);
 
-        const MAX_BURN_PERCENTAGE_NUMERATOR: u128 = 10;
-        const PERCENTAGE_DENOMINATOR: u128 = 100;
+        // 9.99% should be allowed
+        assert!(!exceeds_10_percent_limit(&amount_pass, &supply),
+            "9.99% should be allowed");
 
-        let supply_u128 = supply.0.to_u128().unwrap();
-
-        // Test 9.99% (should pass)
-        let amount_pass_u128 = amount_pass.0.to_u128().unwrap();
-        let amount_pass_scaled = amount_pass_u128.checked_mul(PERCENTAGE_DENOMINATOR).unwrap();
-        let supply_scaled = supply_u128.checked_mul(MAX_BURN_PERCENTAGE_NUMERATOR).unwrap();
-        assert!(!(amount_pass_scaled > supply_scaled), "9.99% should be allowed");
-
-        // Test 10.01% (should fail)
-        let amount_fail_u128 = amount_fail.0.to_u128().unwrap();
-        let amount_fail_scaled = amount_fail_u128.checked_mul(PERCENTAGE_DENOMINATOR).unwrap();
-        assert!(amount_fail_scaled > supply_scaled, "10.01% should be rejected");
+        // 10.01% should be rejected
+        assert!(exceeds_10_percent_limit(&amount_fail, &supply),
+            "10.01% should be rejected");
     }
 }
 
