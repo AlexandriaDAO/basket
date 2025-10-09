@@ -23,3 +23,6 @@ dist/
 
 # environment variables
 .env
+
+# Integration test output files
+integration_test_results*.txt
