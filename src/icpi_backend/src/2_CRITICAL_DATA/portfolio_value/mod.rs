@@ -87,6 +87,19 @@ pub async fn calculate_portfolio_value_atomic() -> Result<Nat> {
 /// Queries Kongswap for real-time token prices and calculates USD value.
 /// Returns error if pricing fails - no fallback prices to ensure accuracy.
 async fn get_token_usd_value(token_symbol: &str, amount: &Nat) -> Result<u64> {
+    // Early return for zero amounts - no need to query price
+    let amount_e8 = amount.0.to_u64()
+        .ok_or_else(|| {
+            crate::infrastructure::IcpiError::Other(
+                format!("Amount {} too large to process", amount)
+            )
+        })?;
+
+    if amount_e8 == 0 {
+        ic_cdk::println!("🔍 Skipping {} pricing (zero balance)", token_symbol);
+        return Ok(0u64);
+    }
+
     ic_cdk::println!("🔍 Pricing {} ({} tokens)", token_symbol, amount);
 
     // Get token enum from symbol
@@ -120,18 +133,6 @@ async fn get_token_usd_value(token_symbol: &str, amount: &Nat) -> Result<u64> {
 
     // Convert price to e6 format (ckUSDT decimals)
     let price_per_token_e6 = (price_usdt_f64 * 1_000_000.0) as u64;
-
-    // Safely convert amount to u64, returning error on overflow
-    let amount_e8 = amount.0.to_u64()
-        .ok_or_else(|| {
-            crate::infrastructure::IcpiError::Other(
-                format!("Amount {} too large to process", amount)
-            )
-        })?;
-
-    if amount_e8 == 0 {
-        return Ok(0u64);
-    }
 
     // Calculate: (amount_e8 * price_e6) / 1e8 with overflow protection
     let amount_u128 = amount_e8 as u128;
