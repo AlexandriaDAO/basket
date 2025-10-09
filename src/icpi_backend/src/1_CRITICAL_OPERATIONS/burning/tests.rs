@@ -1,33 +1,25 @@
 //! Comprehensive tests for burning logic (Phase 4)
 //! Tests for M-2 (fee approval) and M-3 (maximum burn limit)
 //!
-//! DESIGN: These tests validate the burn limit logic by testing percentage calculations
-//! using the same arithmetic as the actual implementation, without accessing internal
-//! Nat representation.
+//! DESIGN: Tests call actual validation functions to ensure production logic is tested.
+//! This eliminates logic duplication and ensures tests reflect actual behavior.
 
 #[cfg(test)]
 mod burn_limit_tests {
     use candid::Nat;
-
-    /// Helper to check if burn amount exceeds limit without accessing Nat internals
-    /// Uses only public Nat API (arithmetic operations and comparisons)
-    fn exceeds_10_percent_limit(amount: &Nat, supply: &Nat) -> bool {
-        // amount * 100 > supply * 10?
-        let amount_scaled = amount.clone() * Nat::from(100u64);
-        let supply_scaled = supply.clone() * Nat::from(10u64);
-        amount_scaled > supply_scaled
-    }
+    use crate::infrastructure::{IcpiError, BurnError};
+    use super::super::burn_validator::validate_burn_limit;
 
     /// Test the maximum burn limit calculation (M-3)
-    /// Ensures integer arithmetic works correctly and prevents burning > 10% of supply
+    /// Calls actual validation function to test production logic
     #[test]
     fn test_burn_exactly_at_10_percent_limit() {
         let supply = Nat::from(1_000_000_000u64); // 1B tokens
         let amount = Nat::from(100_000_000u64); // Exactly 10%
 
-        // At exactly 10%, should NOT exceed limit
-        assert!(!exceeds_10_percent_limit(&amount, &supply),
-            "Exactly 10% should be allowed");
+        // At exactly 10%, should pass validation
+        let result = validate_burn_limit(&amount, &supply);
+        assert!(result.is_ok(), "Exactly 10% should be allowed");
     }
 
     #[test]
@@ -35,9 +27,10 @@ mod burn_limit_tests {
         let supply = Nat::from(1_000_000_000u64); // 1B tokens
         let amount = Nat::from(100_000_001u64); // 10.0000001%
 
-        // Just over 10%, should exceed limit
-        assert!(exceeds_10_percent_limit(&amount, &supply),
-            "10.0000001% should be rejected");
+        // Just over 10%, should fail validation with specific error
+        let result = validate_burn_limit(&amount, &supply);
+        assert!(matches!(result, Err(IcpiError::Burn(BurnError::AmountExceedsMaximum { .. }))),
+            "10.0000001% should be rejected with AmountExceedsMaximum");
     }
 
     #[test]
@@ -47,8 +40,8 @@ mod burn_limit_tests {
         let amount = Nat::from(1_844_674_407_370_955_161u64); // ~10%
 
         // Should handle large values without overflow (Nat uses BigUint internally)
-        assert!(!exceeds_10_percent_limit(&amount, &supply),
-            "Should handle large values without overflow");
+        let result = validate_burn_limit(&amount, &supply);
+        assert!(result.is_ok(), "Should handle large values without overflow");
     }
 
     #[test]
@@ -58,8 +51,9 @@ mod burn_limit_tests {
         let amount = Nat::from(500_000u64); // 100%
 
         // 100% should definitely exceed the 10% limit
-        assert!(exceeds_10_percent_limit(&amount, &supply),
-            "100% burn should be rejected");
+        let result = validate_burn_limit(&amount, &supply);
+        assert!(matches!(result, Err(IcpiError::Burn(BurnError::AmountExceedsMaximum { .. }))),
+            "100% burn should be rejected with AmountExceedsMaximum");
     }
 
     #[test]
@@ -72,13 +66,14 @@ mod burn_limit_tests {
         assert_eq!(max_allowed, Nat::from(100_000_000u64),
             "10% of 1B should be 100M");
 
-        // Verify this amount doesn't exceed limit
-        assert!(!exceeds_10_percent_limit(&max_allowed, &supply),
-            "Exactly 10% should be allowed");
+        // Verify this amount passes validation
+        let result = validate_burn_limit(&max_allowed, &supply);
+        assert!(result.is_ok(), "Exactly 10% should be allowed");
 
-        // But one more should exceed
+        // But one more should fail
         let one_over = max_allowed + Nat::from(1u64);
-        assert!(exceeds_10_percent_limit(&one_over, &supply),
+        let result = validate_burn_limit(&one_over, &supply);
+        assert!(matches!(result, Err(IcpiError::Burn(BurnError::AmountExceedsMaximum { .. }))),
             "Even 1 token over 10% should be rejected");
     }
 
@@ -95,11 +90,12 @@ mod burn_limit_tests {
         let amount_fail = Nat::from(1_001_000u64);
 
         // 9.99% should be allowed
-        assert!(!exceeds_10_percent_limit(&amount_pass, &supply),
-            "9.99% should be allowed");
+        let result = validate_burn_limit(&amount_pass, &supply);
+        assert!(result.is_ok(), "9.99% should be allowed");
 
         // 10.01% should be rejected
-        assert!(exceeds_10_percent_limit(&amount_fail, &supply),
+        let result = validate_burn_limit(&amount_fail, &supply);
+        assert!(matches!(result, Err(IcpiError::Burn(BurnError::AmountExceedsMaximum { .. }))),
             "10.01% should be rejected");
     }
 }
@@ -125,11 +121,13 @@ mod fee_approval_tests {
 
     #[test]
     fn test_insufficient_approval_detection() {
-        // Simulate the approval check logic
-        let required = Nat::from(100_000u64); // 0.1 ckUSDT
-        let approved_insufficient = Nat::from(99_999u64); // Just under
-        let approved_sufficient = Nat::from(100_000u64); // Exact
-        let approved_excess = Nat::from(200_000u64); // Over
+        // Simulate the approval check logic using imported constant
+        use crate::infrastructure::constants::MINT_FEE_AMOUNT;
+
+        let required = Nat::from(MINT_FEE_AMOUNT); // 0.1 ckUSDT = 100_000 e6
+        let approved_insufficient = Nat::from(MINT_FEE_AMOUNT - 1); // Just under
+        let approved_sufficient = Nat::from(MINT_FEE_AMOUNT); // Exact
+        let approved_excess = Nat::from(MINT_FEE_AMOUNT * 2); // Over
 
         assert!(approved_insufficient < required, "Should detect insufficient approval");
         assert!(!(approved_sufficient < required), "Exact approval should be sufficient");
@@ -139,7 +137,9 @@ mod fee_approval_tests {
     #[test]
     fn test_approval_comparison_with_zero() {
         // Edge case: user approved 0 tokens
-        let required = Nat::from(100_000u64);
+        use crate::infrastructure::constants::MINT_FEE_AMOUNT;
+
+        let required = Nat::from(MINT_FEE_AMOUNT);
         let approved_zero = Nat::from(0u64);
 
         assert!(approved_zero < required, "Zero approval should be insufficient");
@@ -147,19 +147,21 @@ mod fee_approval_tests {
 
     #[test]
     fn test_approval_comparison_boundary() {
-        // Test exact boundary: 100_000 e6 = 0.1 ckUSDT
-        let required = Nat::from(100_000u64);
+        // Test exact boundary using imported constant
+        use crate::infrastructure::constants::MINT_FEE_AMOUNT;
+
+        let required = Nat::from(MINT_FEE_AMOUNT);
 
         // One less should fail
-        let one_less = Nat::from(99_999u64);
+        let one_less = Nat::from(MINT_FEE_AMOUNT - 1);
         assert!(one_less < required);
 
         // Exact should pass
-        let exact = Nat::from(100_000u64);
+        let exact = Nat::from(MINT_FEE_AMOUNT);
         assert!(!(exact < required));
 
         // One more should pass
-        let one_more = Nat::from(100_001u64);
+        let one_more = Nat::from(MINT_FEE_AMOUNT + 1);
         assert!(!(one_more < required));
     }
 }
