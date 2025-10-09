@@ -1,9 +1,0 @@
-🧪 ICPI Backend Comprehensive Integration Test Suite
-====================================================
-
-
-Test 1: System Health & Basic Queries
---------------------------------------
-[0;32m✅ PASS[0m: ICPI supply query successful: 42
-109
-672 e8
