@@ -6,6 +6,41 @@
 
 ---
 
+## 📖 Working with Plan Documents
+
+**If you're implementing from a plan document:**
+
+1. **Read the plan FIRST** - It contains:
+   - Current state analysis
+   - File structure before/after
+   - Implementation details (pseudocode)
+   - Testing requirements
+   - Scope estimates
+
+2. **Use plan for WHAT, orchestrator for HOW**
+   - Plan = WHAT to build
+   - This document = HOW to execute (worktrees, PRs, reviews)
+
+3. **Follow the plan's guidance**
+   - Don't guess types (plan shows how to discover them)
+   - Don't skip testing (plan defines test requirements)
+   - Don't deviate unless you find issues
+
+4. **🚨 CRITICAL: Fix Code to Match Tests**
+   - If tests fail: Fix the CODE, not the tests
+   - Tests define security/functional requirements
+   - Only change tests if factually wrong (<1% of cases)
+   - Plan documents emphasize this principle
+
+**Example prompt using plan:**
+```
+Pursue the @feature_xyz_plan.md
+```
+
+Then you read both the plan AND this orchestrator document.
+
+---
+
 ## ⚡ Quick Start (One-Line Commands)
 
 ### 1. Iterate on Existing PR
