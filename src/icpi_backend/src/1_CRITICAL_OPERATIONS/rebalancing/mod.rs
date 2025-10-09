@@ -383,7 +383,7 @@ async fn execute_buy_action(token: &TrackedToken, usd_amount: f64) -> Result<Str
         &TrackedToken::ckUSDT,
         ckusdt_amount.clone(),
         token,
-        MAX_SLIPPAGE_PERCENT / 100.0, // Convert percentage to decimal
+        MAX_SLIPPAGE_PERCENT, // Kongswap expects percentage value (e.g., 5.0 = 5%)
     ).await;
 
     match swap_result {
@@ -456,7 +456,7 @@ async fn execute_sell_action(token: &TrackedToken, usd_value: f64) -> Result<Str
         token,
         token_amount.clone(),
         &TrackedToken::ckUSDT,
-        MAX_SLIPPAGE_PERCENT / 100.0, // Convert percentage to decimal
+        MAX_SLIPPAGE_PERCENT, // Kongswap expects percentage value (e.g., 5.0 = 5%)
     ).await;
 
     match swap_result {

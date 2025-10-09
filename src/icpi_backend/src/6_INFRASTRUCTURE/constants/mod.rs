@@ -37,7 +37,26 @@ pub const BURN_FEE_BUFFER: u64 = 10_000; // Transfer fee buffer
 pub const REBALANCE_INTERVAL_SECONDS: u64 = 3600; // 1 hour
 pub const MIN_DEVIATION_PERCENT: f64 = 1.0; // 1% minimum deviation to trigger
 pub const TRADE_INTENSITY: f64 = 0.1; // Trade 10% of deviation per hour
-pub const MAX_SLIPPAGE_PERCENT: f64 = 2.0; // 2% max slippage
+/// Maximum slippage tolerance for rebalancing trades
+///
+/// **Value Format**: Percentage (e.g., 5.0 = 5%). Passed directly to Kongswap's
+/// max_slippage parameter without conversion.
+///
+/// Set to 5% to accommodate low liquidity in ALEX/ckUSDT pool on Kongswap.
+/// This is safe because:
+/// - Trade size is limited to 10% of deviation per hour (TRADE_INTENSITY)
+/// - Small absolute amounts (~$0.97 per trade)
+/// - Incremental approach prevents large losses even with higher slippage
+///
+/// Historical context:
+/// - 2% was too strict for ALEX pool (all trades rejected)
+/// - ALEX pool has ~$500 liquidity, causing 3-4% slippage on small trades
+/// - 5% provides buffer while still protecting against extreme slippage
+/// - CRITICAL BUG FIX: Previously divided by 100 before passing to Kongswap,
+///   resulting in 0.05% limit instead of 5% limit
+///
+/// See: SLIPPAGE_ISSUE_DIAGNOSTIC.md for full analysis
+pub const MAX_SLIPPAGE_PERCENT: f64 = 5.0;
 pub const MIN_TRADE_SIZE_USD: f64 = 1.0; // $1 minimum trade (lowered for small portfolios)
 
 // ===== Validation Thresholds =====

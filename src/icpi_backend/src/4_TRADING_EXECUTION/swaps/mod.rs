@@ -26,7 +26,7 @@ use crate::infrastructure::{Result, IcpiError, errors::TradingError, KONGSWAP_BA
 /// - `pay_token`: Token to send (e.g., ckUSDT to buy ALEX)
 /// - `pay_amount`: Amount of pay_token to swap (in token's base units)
 /// - `receive_token`: Token to receive (e.g., ALEX when buying)
-/// - `max_slippage`: Maximum acceptable slippage (e.g., 0.02 = 2%)
+/// - `max_slippage`: Maximum acceptable slippage as percentage (e.g., 5.0 = 5%)
 ///
 /// ## Returns
 /// - `Ok(SwapReply)`: Swap details including actual amounts
@@ -42,20 +42,20 @@ use crate::infrastructure::{Result, IcpiError, errors::TradingError, KONGSWAP_BA
 ///
 /// ## Examples
 /// ```rust
-/// // Buy ALEX with 1 ckUSDT (e6 decimals = 1_000_000)
+/// // Buy ALEX with 1 ckUSDT (e6 decimals = 1_000_000) with 2% slippage
 /// let swap_result = execute_swap(
 ///     &TrackedToken::ckUSDT,
 ///     Nat::from(1_000_000u64),
 ///     &TrackedToken::ALEX,
-///     0.02
+///     2.0  // 2% slippage (percentage form, not decimal)
 /// ).await?;
 ///
-/// // Sell 10 ALEX for ckUSDT (e8 decimals = 1_000_000_000)
+/// // Sell 10 ALEX for ckUSDT (e8 decimals = 1_000_000_000) with 5% slippage
 /// let swap_result = execute_swap(
 ///     &TrackedToken::ALEX,
 ///     Nat::from(1_000_000_000u64),
 ///     &TrackedToken::ckUSDT,
-///     0.02
+///     5.0  // 5% slippage (percentage form, not decimal)
 /// ).await?;
 /// ```
 pub async fn execute_swap(
@@ -231,12 +231,12 @@ fn validate_swap_params(
         }));
     }
 
-    // Check max slippage is reasonable
-    if max_slippage < 0.0 || max_slippage > 0.1 {
+    // Check max slippage is reasonable (expects percentage form: 5.0 = 5%)
+    if max_slippage < 0.0 || max_slippage > 10.0 {
         return Err(IcpiError::Trading(TradingError::InvalidSwapAmount {
             reason: format!(
                 "Max slippage must be between 0% and 10%, got {:.2}%",
-                max_slippage * 100.0
+                max_slippage  // Already in percentage form
             ),
         }));
     }
@@ -261,7 +261,7 @@ mod tests {
             &TrackedToken::ckUSDT,
             &Nat::from(1_000_000u64),
             &TrackedToken::ALEX,
-            0.02
+            2.0  // 2% in percentage form
         );
         assert!(result.is_ok());
     }
@@ -272,7 +272,7 @@ mod tests {
             &TrackedToken::ckUSDT,
             &Nat::from(0u64),
             &TrackedToken::ALEX,
-            0.02
+            2.0  // 2% in percentage form
         );
         assert!(result.is_err());
     }
@@ -283,7 +283,7 @@ mod tests {
             &TrackedToken::ckUSDT,
             &Nat::from(1_000_000u64),
             &TrackedToken::ALEX,
-            0.15 // 15% is too high
+            15.0  // 15% is too high
         );
         assert!(result.is_err());
     }
@@ -294,7 +294,7 @@ mod tests {
             &TrackedToken::ALEX,
             &Nat::from(1_000_000u64),
             &TrackedToken::ALEX,
-            0.02
+            2.0  // 2% in percentage form
         );
         assert!(result.is_err());
     }
