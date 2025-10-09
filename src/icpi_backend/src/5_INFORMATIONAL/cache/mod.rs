@@ -8,10 +8,14 @@ thread_local! {
         RefCell::new(HashMap::new());
 }
 
-/// Clear all cached entries
+/// Clear all cached entries (including TVL cache)
 pub fn clear_all_caches() {
     CACHE_ENTRIES.with(|cache| {
         cache.borrow_mut().clear();
     });
-    ic_cdk::println!("All caches cleared");
+
+    // Also clear TVL cache
+    crate::_3_KONG_LIQUIDITY::tvl::clear_tvl_cache();
+
+    ic_cdk::println!("All caches cleared (including TVL)");
 }

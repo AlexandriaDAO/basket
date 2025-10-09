@@ -7,8 +7,72 @@ use candid::Principal;
 use crate::infrastructure::{Result, IcpiError, KONGSWAP_BACKEND_ID};
 use crate::types::TrackedToken;
 use crate::types::kongswap::{UserBalancesResult, UserBalancesReply};
+use std::cell::RefCell;
 
-/// Calculate TVL from Kong Locker positions
+/// Cached TVL data
+/// Structure: (tvl_data, timestamp)
+/// Cache duration: 1 hour (3600 seconds)
+thread_local! {
+    static TVL_CACHE: RefCell<Option<(Vec<(TrackedToken, f64)>, u64)>> = RefCell::new(None);
+}
+
+const TVL_CACHE_DURATION_NANOS: u64 = 3_600_000_000_000; // 1 hour in nanoseconds
+
+/// Calculate TVL from Kong Locker positions (with 1-hour caching)
+///
+/// Returns: Vec<(TrackedToken, usd_value)>
+///
+/// Uses cached data if available and less than 1 hour old, otherwise
+/// fetches fresh data from Kong Locker. This prevents excessive
+/// inter-canister calls since TVL changes slowly.
+///
+/// Cache invalidation: Automatic after 1 hour, or via clear_tvl_cache()
+pub async fn calculate_kong_locker_tvl() -> Result<Vec<(TrackedToken, f64)>> {
+    let now = ic_cdk::api::time();
+
+    // Check if cache is valid
+    let cached_data = TVL_CACHE.with(|cache| {
+        let cache_ref = cache.borrow();
+        if let Some((data, timestamp)) = cache_ref.as_ref() {
+            if now - timestamp < TVL_CACHE_DURATION_NANOS {
+                ic_cdk::println!("📊 Using cached TVL data (age: {}s)", (now - timestamp) / 1_000_000_000);
+                Some(data.clone())
+            } else {
+                ic_cdk::println!("📊 TVL cache expired (age: {}s), refreshing...", (now - timestamp) / 1_000_000_000);
+                None
+            }
+        } else {
+            ic_cdk::println!("📊 No TVL cache, fetching fresh data...");
+            None
+        }
+    });
+
+    // Return cached data if valid
+    if let Some(data) = cached_data {
+        return Ok(data);
+    }
+
+    // Fetch fresh data
+    let fresh_data = calculate_kong_locker_tvl_uncached().await?;
+
+    // Update cache
+    TVL_CACHE.with(|cache| {
+        *cache.borrow_mut() = Some((fresh_data.clone(), now));
+    });
+
+    ic_cdk::println!("📊 TVL cache updated");
+    Ok(fresh_data)
+}
+
+/// Clear TVL cache (for testing or manual refresh)
+pub fn clear_tvl_cache() {
+    TVL_CACHE.with(|cache| {
+        *cache.borrow_mut() = None;
+    });
+    ic_cdk::println!("📊 TVL cache cleared");
+}
+
+/// Calculate TVL from Kong Locker positions (no caching)
 ///
 /// Returns: Vec<(TrackedToken, usd_value)>
 ///
@@ -19,7 +83,10 @@ use crate::types::kongswap::{UserBalancesResult, UserBalancesReply};
 /// 4. Sum USD values across all users
 ///
 /// Example output: [(ALEX, 22500.0), (ZERO, 640.0), (KONG, 48.0), (BOB, 2.0)]
-pub async fn calculate_kong_locker_tvl() -> Result<Vec<(TrackedToken, f64)>> {
+///
+/// IMPORTANT: Use calculate_kong_locker_tvl() instead for normal operations
+/// to benefit from caching. This function is for internal use only.
+async fn calculate_kong_locker_tvl_uncached() -> Result<Vec<(TrackedToken, f64)>> {
     ic_cdk::println!("📊 Calculating Kong Locker TVL...");
 
     // Get all lock canisters - allow this to fail hard as it's a critical dependency
