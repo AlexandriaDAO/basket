@@ -87,6 +87,8 @@ pub async fn calculate_portfolio_value_atomic() -> Result<Nat> {
 /// Queries Kongswap for real-time token prices and calculates USD value.
 /// Returns error if pricing fails - no fallback prices to ensure accuracy.
 async fn get_token_usd_value(token_symbol: &str, amount: &Nat) -> Result<u64> {
+    ic_cdk::println!("🔍 Pricing {} ({} tokens)", token_symbol, amount);
+
     // Get token enum from symbol
     let token = match token_symbol {
         "ALEX" => TrackedToken::ALEX,
@@ -94,6 +96,7 @@ async fn get_token_usd_value(token_symbol: &str, amount: &Nat) -> Result<u64> {
         "KONG" => TrackedToken::KONG,
         "BOB" => TrackedToken::BOB,
         _ => {
+            ic_cdk::println!("❌ Unknown token: {}", token_symbol);
             return Err(crate::infrastructure::IcpiError::Other(
                 format!("Unknown token: {}", token_symbol)
             ));
@@ -101,7 +104,19 @@ async fn get_token_usd_value(token_symbol: &str, amount: &Nat) -> Result<u64> {
     };
 
     // Get real-time price from Kongswap - fail if unavailable
-    let price_usdt_f64 = crate::_3_KONG_LIQUIDITY::pools::get_token_price_in_usdt(&token).await?;
+    ic_cdk::println!("  Querying Kongswap for {} price...", token_symbol);
+    let price_result = crate::_3_KONG_LIQUIDITY::pools::get_token_price_in_usdt(&token).await;
+
+    let price_usdt_f64 = match price_result {
+        Ok(price) => {
+            ic_cdk::println!("  ✅ {} price: ${:.6} per token", token_symbol, price);
+            price
+        }
+        Err(e) => {
+            ic_cdk::println!("  ❌ {} pricing failed: {}", token_symbol, e);
+            return Err(e);
+        }
+    };
 
     // Convert price to e6 format (ckUSDT decimals)
     let price_per_token_e6 = (price_usdt_f64 * 1_000_000.0) as u64;
@@ -227,29 +242,36 @@ pub async fn get_portfolio_state_uncached() -> Result<IndexState> {
         }
     }
 
-    // For now, target allocations are equal (25% each for 4 tokens)
-    let target_allocations = vec![
-        TargetAllocation {
-            token: TrackedToken::ALEX,
-            target_percentage: 25.0,
-            target_usd_value: total_value_f64 * 0.25,
-        },
-        TargetAllocation {
-            token: TrackedToken::ZERO,
-            target_percentage: 25.0,
-            target_usd_value: total_value_f64 * 0.25,
-        },
-        TargetAllocation {
-            token: TrackedToken::KONG,
-            target_percentage: 25.0,
-            target_usd_value: total_value_f64 * 0.25,
-        },
-        TargetAllocation {
-            token: TrackedToken::BOB,
-            target_percentage: 25.0,
-            target_usd_value: total_value_f64 * 0.25,
-        },
-    ];
+    // Calculate target allocations from Kong Locker TVL
+    // This ensures portfolio tracks real market liquidity distribution
+    let tvl_data = crate::_3_KONG_LIQUIDITY::tvl::calculate_kong_locker_tvl().await?;
+    let total_tvl: f64 = tvl_data.iter().map(|(_, v)| v).sum();
+
+    ic_cdk::println!("📊 Target allocations from Kong Locker TVL (total: ${:.2}):", total_tvl);
+
+    let target_allocations: Vec<TargetAllocation> = tvl_data.iter()
+        .map(|(token, tvl_usd)| {
+            let target_percentage = if total_tvl > 0.0 {
+                (tvl_usd / total_tvl) * 100.0
+            } else {
+                // Fallback to equal allocation if TVL is zero
+                25.0
+            };
+
+            ic_cdk::println!(
+                "  {}: ${:.2} = {:.2}% of TVL",
+                token.to_symbol(),
+                tvl_usd,
+                target_percentage
+            );
+
+            TargetAllocation {
+                token: token.clone(),
+                target_percentage,
+                target_usd_value: total_value_f64 * (target_percentage / 100.0),
+            }
+        })
+        .collect();
 
     // Calculate deviations comparing current vs target allocations
     use crate::types::rebalancing::AllocationDeviation;
