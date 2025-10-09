@@ -336,4 +336,148 @@ mod tests {
         // Now should succeed again
         let _guard2 = BurnGuard::acquire(user).expect("Should succeed after drop");
     }
+
+    #[test]
+    fn test_different_users_can_mint_concurrently() {
+        let user1 = Principal::from_text("2vxsx-fae").unwrap();
+        let user2 = Principal::from_text("aaaaa-aa").unwrap();
+
+        // Both users should be able to acquire guards
+        let _guard1 = MintGuard::acquire(user1).expect("User 1 should succeed");
+        let _guard2 = MintGuard::acquire(user2).expect("User 2 should succeed");
+
+        // Both guards active simultaneously
+        assert!(ACTIVE_MINTS.with(|m| m.borrow().len() == 2));
+    }
+
+    // === M-4: Global Operation Coordination Tests ===
+
+    #[test]
+    fn test_idle_to_minting_transition() {
+        // Reset state
+        CURRENT_GLOBAL_OPERATION.with(|c| *c.borrow_mut() = GlobalOperation::Idle);
+
+        let result = try_start_global_operation(GlobalOperation::Minting);
+        assert!(result.is_ok(), "Should allow idle → minting");
+        assert_eq!(get_current_operation(), GlobalOperation::Minting);
+    }
+
+    #[test]
+    fn test_idle_to_rebalancing_transition() {
+        // Reset state
+        CURRENT_GLOBAL_OPERATION.with(|c| *c.borrow_mut() = GlobalOperation::Idle);
+
+        let result = try_start_global_operation(GlobalOperation::Rebalancing);
+        assert!(result.is_ok(), "Should allow idle → rebalancing");
+        assert_eq!(get_current_operation(), GlobalOperation::Rebalancing);
+    }
+
+    #[test]
+    fn test_minting_blocks_rebalancing() {
+        // Reset state
+        CURRENT_GLOBAL_OPERATION.with(|c| *c.borrow_mut() = GlobalOperation::Idle);
+
+        // Start minting
+        let _ = try_start_global_operation(GlobalOperation::Minting).unwrap();
+
+        // Try to start rebalancing - should fail
+        let result = try_start_global_operation(GlobalOperation::Rebalancing);
+        assert!(result.is_err(), "Minting should block rebalancing");
+        assert!(matches!(result, Err(IcpiError::System(SystemError::CriticalOperationInProgress { .. }))));
+    }
+
+    #[test]
+    fn test_rebalancing_blocks_minting() {
+        // Reset state
+        CURRENT_GLOBAL_OPERATION.with(|c| *c.borrow_mut() = GlobalOperation::Idle);
+
+        // Start rebalancing
+        let _ = try_start_global_operation(GlobalOperation::Rebalancing).unwrap();
+
+        // Try to start minting - should fail
+        let result = try_start_global_operation(GlobalOperation::Minting);
+        assert!(result.is_err(), "Rebalancing should block minting");
+        assert!(matches!(result, Err(IcpiError::System(SystemError::RebalancingInProgress))));
+    }
+
+    #[test]
+    fn test_minting_and_burning_can_coexist() {
+        // Reset state
+        CURRENT_GLOBAL_OPERATION.with(|c| *c.borrow_mut() = GlobalOperation::Idle);
+
+        // Start minting
+        let _ = try_start_global_operation(GlobalOperation::Minting).unwrap();
+
+        // Start burning - should succeed
+        let result = try_start_global_operation(GlobalOperation::Burning);
+        assert!(result.is_ok(), "Minting and burning should coexist");
+
+        // State should still be one of them (implementation detail)
+        let current = get_current_operation();
+        assert!(current == GlobalOperation::Minting || current == GlobalOperation::Burning);
+    }
+
+    #[test]
+    fn test_multiple_mints_allowed() {
+        // Reset state
+        CURRENT_GLOBAL_OPERATION.with(|c| *c.borrow_mut() = GlobalOperation::Idle);
+
+        // Start first mint
+        let _ = try_start_global_operation(GlobalOperation::Minting).unwrap();
+
+        // Start second mint - should succeed
+        let result = try_start_global_operation(GlobalOperation::Minting);
+        assert!(result.is_ok(), "Multiple concurrent mints should be allowed");
+    }
+
+    #[test]
+    fn test_end_rebalancing_clears_state() {
+        // Reset state
+        CURRENT_GLOBAL_OPERATION.with(|c| *c.borrow_mut() = GlobalOperation::Idle);
+
+        // Start and end rebalancing
+        let _ = try_start_global_operation(GlobalOperation::Rebalancing).unwrap();
+        assert_eq!(get_current_operation(), GlobalOperation::Rebalancing);
+
+        end_global_operation(GlobalOperation::Rebalancing);
+        assert_eq!(get_current_operation(), GlobalOperation::Idle);
+    }
+
+    #[test]
+    fn test_cannot_transition_to_idle_via_try_start() {
+        // Reset state
+        CURRENT_GLOBAL_OPERATION.with(|c| *c.borrow_mut() = GlobalOperation::Minting);
+
+        // Try to transition to Idle via try_start (invalid)
+        let result = try_start_global_operation(GlobalOperation::Idle);
+        assert!(result.is_err(), "Should not allow transitioning to Idle via try_start");
+        assert!(matches!(result, Err(IcpiError::System(SystemError::StateCorrupted { .. }))));
+    }
+
+    #[test]
+    fn test_has_active_operations() {
+        // Reset state
+        CURRENT_GLOBAL_OPERATION.with(|c| *c.borrow_mut() = GlobalOperation::Idle);
+        ACTIVE_MINTS.with(|m| m.borrow_mut().clear());
+        ACTIVE_BURNS.with(|b| b.borrow_mut().clear());
+
+        // No operations active
+        assert!(!has_active_operations());
+
+        // Start minting
+        let _ = try_start_global_operation(GlobalOperation::Minting).unwrap();
+        assert!(has_active_operations());
+
+        // End minting
+        end_global_operation(GlobalOperation::Minting);
+        // Note: Still might show active if per-user guards are active
+    }
+
+    #[test]
+    fn test_global_operation_enum_as_str() {
+        assert_eq!(GlobalOperation::Idle.as_str(), "idle");
+        assert_eq!(GlobalOperation::Minting.as_str(), "minting");
+        assert_eq!(GlobalOperation::Burning.as_str(), "burning");
+        assert_eq!(GlobalOperation::Rebalancing.as_str(), "rebalancing");
+    }
 }

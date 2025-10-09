@@ -236,4 +236,218 @@ mod tests {
         assert_eq!(result[0].1, Nat::from(500u64));
         assert_eq!(result[1].1, Nat::from(1000u64));
     }
+
+    // === Phase 4: Comprehensive Math Tests ===
+
+    #[test]
+    fn test_division_by_zero() {
+        let a = Nat::from(100u64);
+        let b = Nat::from(200u64);
+        let c = Nat::from(0u64);
+
+        let result = multiply_and_divide(&a, &b, &c);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(IcpiError::Calculation(CalculationError::DivisionByZero { .. }))));
+    }
+
+    #[test]
+    fn test_large_value_multiplication() {
+        // Test with large values that would overflow u64 but work with BigUint
+        let a = Nat::from(u64::MAX);
+        let b = Nat::from(2u64);
+        let c = Nat::from(1u64);
+
+        let result = multiply_and_divide(&a, &b, &c).unwrap();
+        // Result should be 2 * u64::MAX which is larger than u64::MAX
+        assert!(result > Nat::from(u64::MAX));
+    }
+
+    #[test]
+    fn test_decimal_conversion_same_decimals() {
+        let amount = Nat::from(1_000_000u64);
+        let result = convert_decimals(&amount, 6, 6).unwrap();
+        assert_eq!(result, amount); // Should return unchanged
+    }
+
+    #[test]
+    fn test_decimal_conversion_precision_loss() {
+        // Convert 1 (e6) to e8 and back - should preserve value
+        let original = Nat::from(1_000_000u64); // 1.0 in e6
+        let to_e8 = convert_decimals(&original, 6, 8).unwrap();
+        let back_to_e6 = convert_decimals(&to_e8, 8, 6).unwrap();
+        assert_eq!(back_to_e6, original);
+    }
+
+    #[test]
+    fn test_decimal_conversion_down_below_minimum() {
+        // Trying to convert 1 (raw value) from e6 to e8 by going down would cause precision loss
+        let tiny_amount = Nat::from(1u64);
+        let result = convert_decimals(&tiny_amount, 8, 6); // Scale down would lose precision
+
+        // Should error due to precision loss
+        assert!(result.is_err());
+        assert!(matches!(result, Err(IcpiError::Calculation(CalculationError::PrecisionLoss { .. }))));
+    }
+
+    #[test]
+    fn test_mint_amount_zero_deposit() {
+        let result = calculate_mint_amount(
+            &Nat::from(0u64),
+            &Nat::from(1_000_000u64),
+            &Nat::from(1_000_000u64)
+        );
+
+        assert!(result.is_err());
+        assert!(matches!(result, Err(IcpiError::Validation(ValidationError::InvalidAmount { .. }))));
+    }
+
+    #[test]
+    fn test_mint_amount_proportional_ownership() {
+        // Supply: 100 ICPI (10,000,000,000 e8)
+        // TVL: 100 ckUSDT (100,000,000 e6)
+        // Deposit: 10 ckUSDT (10,000,000 e6) = 10%
+        // Expected: 10 ICPI (1,000,000,000 e8)
+
+        let deposit = Nat::from(10_000_000u64);
+        let supply = Nat::from(10_000_000_000u64);
+        let tvl = Nat::from(100_000_000u64);
+
+        let result = calculate_mint_amount(&deposit, &supply, &tvl).unwrap();
+        assert_eq!(result, Nat::from(1_000_000_000u64));
+    }
+
+    #[test]
+    fn test_mint_amount_very_small_deposit() {
+        // Test with a very small deposit that would round to zero
+        // Supply: 1M ICPI, TVL: 1M ckUSDT
+        // Deposit: 1 e6 (tiny)
+        let deposit = Nat::from(1u64); // 0.000001 ckUSDT
+        let supply = Nat::from(100_000_000_000_000u64); // 1M ICPI
+        let tvl = Nat::from(1_000_000_000_000u64); // 1M ckUSDT
+
+        let result = calculate_mint_amount(&deposit, &supply, &tvl);
+        // Should fail because result would be zero
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_redemptions_burn_entire_supply() {
+        // Burning entire supply should redeem all balances
+        let burn_amount = Nat::from(100_000_000u64);
+        let total_supply = Nat::from(100_000_000u64);
+        let balances = vec![
+            ("ALEX".to_string(), Nat::from(1000u64)),
+            ("KONG".to_string(), Nat::from(2000u64)),
+        ];
+
+        let result = calculate_redemptions(&burn_amount, &total_supply, &balances).unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].1, Nat::from(1000u64)); // All of ALEX
+        assert_eq!(result[1].1, Nat::from(2000u64)); // All of KONG
+    }
+
+    #[test]
+    fn test_redemptions_burn_more_than_supply() {
+        // Burning more than supply should error
+        let burn_amount = Nat::from(101_000_000u64);
+        let total_supply = Nat::from(100_000_000u64);
+        let balances = vec![
+            ("ALEX".to_string(), Nat::from(1000u64)),
+        ];
+
+        let result = calculate_redemptions(&burn_amount, &total_supply, &balances);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(IcpiError::Validation(ValidationError::InvalidAmount { .. }))));
+    }
+
+    #[test]
+    fn test_redemptions_zero_burn() {
+        let burn_amount = Nat::from(0u64);
+        let total_supply = Nat::from(100_000_000u64);
+        let balances = vec![
+            ("ALEX".to_string(), Nat::from(1000u64)),
+        ];
+
+        let result = calculate_redemptions(&burn_amount, &total_supply, &balances);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(IcpiError::Validation(ValidationError::InvalidAmount { .. }))));
+    }
+
+    #[test]
+    fn test_redemptions_zero_supply() {
+        let burn_amount = Nat::from(1_000_000u64);
+        let total_supply = Nat::from(0u64);
+        let balances = vec![
+            ("ALEX".to_string(), Nat::from(1000u64)),
+        ];
+
+        let result = calculate_redemptions(&burn_amount, &total_supply, &balances);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(IcpiError::Burn(BurnError::NoRedemptionsPossible { .. }))));
+    }
+
+    #[test]
+    fn test_redemptions_no_balances() {
+        let burn_amount = Nat::from(1_000_000u64);
+        let total_supply = Nat::from(100_000_000u64);
+        let balances: Vec<(String, Nat)> = vec![];
+
+        let result = calculate_redemptions(&burn_amount, &total_supply, &balances);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(IcpiError::Burn(BurnError::NoRedemptionsPossible { .. }))));
+    }
+
+    #[test]
+    fn test_redemptions_skip_zero_balances() {
+        let burn_amount = Nat::from(50_000_000u64);
+        let total_supply = Nat::from(100_000_000u64);
+        let balances = vec![
+            ("ALEX".to_string(), Nat::from(1000u64)),
+            ("KONG".to_string(), Nat::from(0u64)), // Zero balance
+            ("ZERO".to_string(), Nat::from(2000u64)),
+        ];
+
+        let result = calculate_redemptions(&burn_amount, &total_supply, &balances).unwrap();
+        // Should only include ALEX and ZERO
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].0, "ALEX");
+        assert_eq!(result[1].0, "ZERO");
+    }
+
+    #[test]
+    fn test_trade_size_zero_deviation() {
+        let result = calculate_trade_size(0.0, 0.1, 1.0).unwrap();
+        assert_eq!(result, Nat::from(0u64));
+    }
+
+    #[test]
+    fn test_trade_size_below_minimum() {
+        // Deviation $5, intensity 10%, min $1 → trade $0.50 → returns 0
+        let result = calculate_trade_size(5.0, 0.1, 1.0).unwrap();
+        assert_eq!(result, Nat::from(0u64));
+    }
+
+    #[test]
+    fn test_trade_size_above_minimum() {
+        // Deviation $100, intensity 10%, min $1 → trade $10 → returns 10_000_000 e6
+        let result = calculate_trade_size(100.0, 0.1, 1.0).unwrap();
+        assert_eq!(result, Nat::from(10_000_000u64)); // $10 in e6
+    }
+
+    #[test]
+    fn test_multiply_and_divide_maintains_precision() {
+        // Test that multiply_and_divide doesn't lose precision unnecessarily
+        // (3 * 7) / 2 = 21 / 2 = 10 (integer division, expected)
+        let result = multiply_and_divide(&Nat::from(3u64), &Nat::from(7u64), &Nat::from(2u64)).unwrap();
+        assert_eq!(result, Nat::from(10u64));
+    }
+
+    #[test]
+    fn test_nat_biguint_roundtrip() {
+        // Test conversion helpers
+        let original = Nat::from(123456789u64);
+        let big = nat_to_biguint(&original);
+        let back = biguint_to_nat(big).unwrap();
+        assert_eq!(back, original);
+    }
 }

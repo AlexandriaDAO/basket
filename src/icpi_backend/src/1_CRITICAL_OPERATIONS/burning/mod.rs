@@ -5,6 +5,9 @@ pub mod burn_validator;
 pub mod redemption_calculator;
 pub mod token_distributor;
 
+#[cfg(test)]
+mod tests;
+
 use candid::{CandidType, Deserialize, Nat, Principal};
 use crate::infrastructure::{Result, IcpiError};
 
@@ -97,44 +100,8 @@ pub async fn burn_icpi(caller: Principal, amount: Nat) -> Result<BurnResult> {
     }
 
     // Phase 3: M-3 - Enforce maximum burn amount (10% of supply per transaction)
-    // Phase 4 Enhancement: Use pure integer arithmetic to avoid f64 precision loss
-    // This prevents burning entire supply in one transaction, reducing systemic risk
-    const MAX_BURN_PERCENTAGE_NUMERATOR: u128 = 10; // 10%
-    const PERCENTAGE_DENOMINATOR: u128 = 100;
-
-    // Convert to u128 for safe calculation
-    use num_traits::ToPrimitive;
-    let supply_u128 = current_supply.0.to_u128()
-        .ok_or_else(|| IcpiError::Other("Supply too large to process".to_string()))?;
-    let amount_u128 = amount.0.to_u128()
-        .ok_or_else(|| IcpiError::Other("Amount too large to process".to_string()))?;
-
-    // Integer arithmetic: Check if (amount * 100 > supply * 10)
-    // This is equivalent to (amount / supply > 0.10) but avoids floating point
-    // Using checked_mul to prevent overflow
-    let amount_scaled = amount_u128.checked_mul(PERCENTAGE_DENOMINATOR)
-        .ok_or_else(|| IcpiError::Other("Burn amount too large for calculation".to_string()))?;
-    let supply_scaled = supply_u128.checked_mul(MAX_BURN_PERCENTAGE_NUMERATOR)
-        .ok_or_else(|| IcpiError::Other("Supply too large for calculation".to_string()))?;
-
-    if amount_scaled > supply_scaled {
-        // Calculate maximum allowed burn using integer arithmetic
-        // max_burn = (supply * 10) / 100
-        let maximum_burn = supply_u128
-            .checked_mul(MAX_BURN_PERCENTAGE_NUMERATOR)
-            .and_then(|v| v.checked_div(PERCENTAGE_DENOMINATOR))
-            .ok_or_else(|| IcpiError::Other("Maximum burn calculation overflow".to_string()))?;
-
-        ic_cdk::println!(
-            "⚠️ Burn amount {} exceeds maximum {}% of supply (max: {})",
-            amount, MAX_BURN_PERCENTAGE_NUMERATOR, maximum_burn
-        );
-        return Err(IcpiError::Burn(crate::infrastructure::BurnError::AmountExceedsMaximum {
-            amount: amount.to_string(),
-            maximum: maximum_burn.to_string(),
-            percentage_limit: format!("{}%", MAX_BURN_PERCENTAGE_NUMERATOR),
-        }));
-    }
+    // Phase 4 Enhancement: Extracted to burn_validator for testability and reusability
+    burn_validator::validate_burn_limit(&amount, &current_supply)?;
 
     // CRITICAL: Check user has sufficient ICPI balance BEFORE collecting fee
     // This prevents user from paying fee if burn will fail anyway

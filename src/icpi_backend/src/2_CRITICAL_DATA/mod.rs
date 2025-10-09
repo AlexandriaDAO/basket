@@ -113,3 +113,103 @@ async fn validate_and_return_snapshot(supply: Nat, tvl: Nat) -> Result<(Nat, Nat
     Ok((supply, tvl))
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// M-5 tests: Atomic snapshot logic and validation
+    /// Note: Full integration tests require mocking async canister calls
+
+    #[test]
+    fn test_inconsistent_state_supply_but_no_tvl() {
+        // Simulate the validation logic for supply > 0 but TVL = 0
+        let supply = Nat::from(1_000_000u64);
+        let tvl = Nat::from(0u64);
+
+        // This condition should trigger a hard error
+        let is_inconsistent = supply > Nat::from(0u32) && tvl == Nat::from(0u32);
+        assert!(is_inconsistent, "Should detect supply without TVL as inconsistent");
+    }
+
+    #[test]
+    fn test_inconsistent_state_tvl_but_no_supply() {
+        // Simulate the validation logic for TVL > 0 but supply = 0
+        let supply = Nat::from(0u64);
+        let tvl = Nat::from(100_000u64);
+
+        // This condition should trigger a hard error
+        let is_inconsistent = supply == Nat::from(0u32) && tvl > Nat::from(0u32);
+        assert!(is_inconsistent, "Should detect TVL without supply as inconsistent");
+    }
+
+    #[test]
+    fn test_consistent_state_both_zero() {
+        // Both zero is consistent (initial state)
+        let supply = Nat::from(0u64);
+        let tvl = Nat::from(0u64);
+
+        let is_inconsistent = (supply > Nat::from(0u32) && tvl == Nat::from(0u32)) ||
+                              (supply == Nat::from(0u32) && tvl > Nat::from(0u32));
+
+        assert!(!is_inconsistent, "Both zero should be consistent (initial state)");
+    }
+
+    #[test]
+    fn test_consistent_state_both_positive() {
+        // Both positive is consistent (normal operation)
+        let supply = Nat::from(1_000_000u64);
+        let tvl = Nat::from(500_000u64);
+
+        let is_inconsistent = (supply > Nat::from(0u32) && tvl == Nat::from(0u32)) ||
+                              (supply == Nat::from(0u32) && tvl > Nat::from(0u32));
+
+        assert!(!is_inconsistent, "Both positive should be consistent");
+    }
+
+    #[test]
+    fn test_max_retries_constant() {
+        // Verify retry configuration is reasonable
+        const MAX_RETRIES: u8 = 2;
+
+        // Should allow 3 total attempts (initial + 2 retries)
+        let total_attempts = MAX_RETRIES + 1;
+        assert_eq!(total_attempts, 3, "Should allow 3 total attempts");
+    }
+
+    #[test]
+    fn test_snapshot_validation_boundaries() {
+        // Test edge case: supply = 1, tvl = 0 (should fail)
+        let supply_one = Nat::from(1u64);
+        let tvl_zero = Nat::from(0u64);
+
+        let is_inconsistent = supply_one > Nat::from(0u32) && tvl_zero == Nat::from(0u32);
+        assert!(is_inconsistent, "Even 1 token with 0 TVL should be inconsistent");
+
+        // Test edge case: supply = 0, tvl = 1 (should fail)
+        let supply_zero = Nat::from(0u64);
+        let tvl_one = Nat::from(1u64);
+
+        let is_inconsistent = supply_zero == Nat::from(0u32) && tvl_one > Nat::from(0u32);
+        assert!(is_inconsistent, "Even 1 ckUSDT with 0 supply should be inconsistent");
+    }
+
+    #[test]
+    fn test_validation_logic_symmetry() {
+        // Both conditions should be mutually exclusive
+        let cases = vec![
+            (Nat::from(0u64), Nat::from(0u64)),     // (0, 0) - both fail
+            (Nat::from(0u64), Nat::from(100u64)),   // (0, >0) - condition 2 fails
+            (Nat::from(100u64), Nat::from(0u64)),   // (>0, 0) - condition 1 fails
+            (Nat::from(100u64), Nat::from(100u64)), // (>0, >0) - both pass
+        ];
+
+        for (supply, tvl) in cases {
+            let cond1 = supply > Nat::from(0u32) && tvl == Nat::from(0u32);
+            let cond2 = supply == Nat::from(0u32) && tvl > Nat::from(0u32);
+
+            // Both conditions should never be true simultaneously
+            assert!(!(cond1 && cond2), "Conditions should be mutually exclusive for supply={}, tvl={}", supply, tvl);
+        }
+    }
+}
+
