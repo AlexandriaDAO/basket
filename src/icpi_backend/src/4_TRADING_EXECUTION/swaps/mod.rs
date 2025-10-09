@@ -72,7 +72,7 @@ pub async fn execute_swap(
         pay_amount,
         pay_token.to_symbol(),
         receive_token.to_symbol(),
-        max_slippage * 100.0
+        max_slippage
     );
 
     // === STEP 2: Approve Tokens ===
@@ -151,12 +151,12 @@ pub async fn execute_swap(
 
     // === STEP 6: Log Success ===
     ic_cdk::println!(
-        "✅ Swap complete: {} {} → {} {} (slippage: {:.2}%, price: {})",
+        "✅ Swap complete: {} {} → {} {} (slippage: {:.4}%, price: {})",
         pay_amount,
         pay_token.to_symbol(),
         swap_reply.receive_amount,
         receive_token.to_symbol(),
-        swap_reply.slippage * 100.0,
+        swap_reply.slippage,
         swap_reply.price
     );
 

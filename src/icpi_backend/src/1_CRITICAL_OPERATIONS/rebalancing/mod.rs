@@ -389,11 +389,11 @@ async fn execute_buy_action(token: &TrackedToken, usd_amount: f64) -> Result<Str
     match swap_result {
         Ok(reply) => {
             let msg = format!(
-                "Bought {} {} with ${:.2} (slippage: {:.2}%)",
+                "Bought {} {} with ${:.2} (slippage: {:.4}%)",
                 reply.receive_amount,
                 token.to_symbol(),
                 usd_amount,
-                reply.slippage * 100.0
+                reply.slippage
             );
             ic_cdk::println!("✅ {}", msg);
             record_rebalance(
@@ -463,11 +463,11 @@ async fn execute_sell_action(token: &TrackedToken, usd_value: f64) -> Result<Str
         Ok(reply) => {
             let received_usd = reply.receive_amount.0.to_u64().unwrap_or(0) as f64 / 1_000_000.0;
             let msg = format!(
-                "Sold {} {} for ${:.2} (slippage: {:.2}%)",
+                "Sold {} {} for ${:.2} (slippage: {:.4}%)",
                 token_amount,
                 token.to_symbol(),
                 received_usd,
-                reply.slippage * 100.0
+                reply.slippage
             );
             ic_cdk::println!("✅ {}", msg);
             record_rebalance(

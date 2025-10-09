@@ -20,7 +20,7 @@ use num_traits::ToPrimitive;
 ///
 /// ## Example
 /// - Expected: 100 tokens
-/// - Max slippage: 0.02 (2%)
+/// - Max slippage: 2.0 (2.0%)
 /// - Result: 98 tokens (will accept down to 98)
 ///
 /// ## Edge Cases
@@ -31,7 +31,7 @@ pub fn calculate_min_receive(
     max_slippage: f64,
 ) -> Nat {
     let expected_f64 = expected_amount.0.to_u64().unwrap_or(0) as f64;
-    let min_f64 = expected_f64 * (1.0 - max_slippage);
+    let min_f64 = expected_f64 * (1.0 - max_slippage / 100.0);
     Nat::from(min_f64 as u64)
 }
 
@@ -40,7 +40,7 @@ pub fn calculate_min_receive(
 /// ## Parameters
 /// - `expected`: Amount we expected to receive based on pre-swap query
 /// - `actual`: Amount actually received from the swap
-/// - `max_slippage`: Maximum allowed slippage (e.g., 0.02 = 2%)
+/// - `max_slippage`: Maximum allowed slippage as percentage (e.g., 2.0 = 2.0%)
 ///
 /// ## Returns
 /// - `Ok(())` if slippage is acceptable
@@ -49,13 +49,13 @@ pub fn calculate_min_receive(
 /// ## Examples
 /// ```
 /// // Good: 2% slippage with 2% max
-/// validate_swap_result(&Nat::from(100), &Nat::from(98), 0.02)?; // OK
+/// validate_swap_result(&Nat::from(100), &Nat::from(98), 2.0)?; // OK
 ///
 /// // Good: Positive slippage (got more than expected)
-/// validate_swap_result(&Nat::from(100), &Nat::from(102), 0.02)?; // OK
+/// validate_swap_result(&Nat::from(100), &Nat::from(102), 2.0)?; // OK
 ///
 /// // Bad: 5% slippage with 2% max
-/// validate_swap_result(&Nat::from(100), &Nat::from(95), 0.02)?; // Error
+/// validate_swap_result(&Nat::from(100), &Nat::from(95), 2.0)?; // Error
 /// ```
 pub fn validate_swap_result(
     expected: &Nat,
@@ -77,28 +77,29 @@ pub fn validate_swap_result(
         }));
     }
 
-    // Calculate actual slippage
-    let actual_slippage = (expected_f64 - actual_f64) / expected_f64;
+    // Calculate actual slippage as decimal and percentage
+    let actual_slippage_decimal = (expected_f64 - actual_f64) / expected_f64;
+    let actual_slippage_pct = actual_slippage_decimal * 100.0;
 
     // Positive slippage (got more than expected) is always good
-    if actual_slippage < 0.0 {
-        ic_cdk::println!("✅ Positive slippage: expected {}, got {} ({}% better)",
-            expected_f64, actual_f64, (-actual_slippage * 100.0));
+    if actual_slippage_decimal < 0.0 {
+        ic_cdk::println!("✅ Positive slippage: expected {}, got {} ({:.4}% better)",
+            expected_f64, actual_f64, -actual_slippage_pct);
         return Ok(());
     }
 
-    // Check if slippage exceeds maximum
-    if actual_slippage > max_slippage {
+    // Check if slippage exceeds maximum (both now in percentage format)
+    if actual_slippage_pct > max_slippage {
         return Err(IcpiError::Trading(TradingError::SlippageExceeded {
             expected: expected.clone(),
             actual: actual.clone(),
             max_allowed: max_slippage,
-            actual_slippage,
+            actual_slippage: actual_slippage_decimal,
         }));
     }
 
-    ic_cdk::println!("✅ Slippage acceptable: {:.2}% (max: {:.2}%)",
-        actual_slippage * 100.0, max_slippage * 100.0);
+    ic_cdk::println!("✅ Slippage acceptable: {:.4}% (max: {:.2}%)",
+        actual_slippage_pct, max_slippage);
 
     Ok(())
 }
@@ -111,12 +112,12 @@ mod tests {
     fn test_calculate_min_receive() {
         // 2% slippage on 100 tokens = 98 minimum
         let expected = Nat::from(100u64);
-        let min = calculate_min_receive(&expected, 0.02);
+        let min = calculate_min_receive(&expected, 2.0);
         assert_eq!(min, Nat::from(98u64));
 
         // 5% slippage on 1000 tokens = 950 minimum
         let expected = Nat::from(1000u64);
-        let min = calculate_min_receive(&expected, 0.05);
+        let min = calculate_min_receive(&expected, 5.0);
         assert_eq!(min, Nat::from(950u64));
     }
 
@@ -125,7 +126,7 @@ mod tests {
         // 2% slippage with 2% max should pass
         let expected = Nat::from(100u64);
         let actual = Nat::from(98u64);
-        assert!(validate_swap_result(&expected, &actual, 0.02).is_ok());
+        assert!(validate_swap_result(&expected, &actual, 2.0).is_ok());
     }
 
     #[test]
@@ -133,7 +134,7 @@ mod tests {
         // Got more than expected should always pass
         let expected = Nat::from(100u64);
         let actual = Nat::from(105u64);
-        assert!(validate_swap_result(&expected, &actual, 0.02).is_ok());
+        assert!(validate_swap_result(&expected, &actual, 2.0).is_ok());
     }
 
     #[test]
@@ -141,7 +142,7 @@ mod tests {
         // 5% slippage with 2% max should fail
         let expected = Nat::from(100u64);
         let actual = Nat::from(95u64);
-        assert!(validate_swap_result(&expected, &actual, 0.02).is_err());
+        assert!(validate_swap_result(&expected, &actual, 2.0).is_err());
     }
 
     #[test]
@@ -149,6 +150,6 @@ mod tests {
         // Zero expected amount should fail
         let expected = Nat::from(0u64);
         let actual = Nat::from(100u64);
-        assert!(validate_swap_result(&expected, &actual, 0.02).is_err());
+        assert!(validate_swap_result(&expected, &actual, 2.0).is_err());
     }
 }
