@@ -264,7 +264,7 @@ async fn hourly_rebalance() -> Result<String> {
     ic_cdk::println!("🔄 Starting hourly rebalance cycle...");
 
     // Get current portfolio state (includes deviations)
-    let state = crate::_5_INFORMATIONAL::display::get_index_state_cached().await;
+    let state = crate::_5_INFORMATIONAL::display::get_index_state_cached().await?;
 
     ic_cdk::println!(
         "📊 Portfolio: ${:.2} total, ${} ckUSDT available",

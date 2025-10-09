@@ -80,7 +80,7 @@ async fn trigger_manual_rebalance() -> Result<String> {
 #[update]
 #[candid_method(update)]
 async fn get_index_state() -> Result<types::portfolio::IndexState> {
-    Ok(_5_INFORMATIONAL::display::get_index_state_cached().await)
+    _5_INFORMATIONAL::display::get_index_state_cached().await
 }
 
 /// NOTE (PR #8 Review): Reviewer suggested this should be #[query] for cached reads
@@ -90,7 +90,7 @@ async fn get_index_state() -> Result<types::portfolio::IndexState> {
 #[update]
 #[candid_method(update)]
 async fn get_index_state_cached() -> Result<types::portfolio::IndexState> {
-    Ok(_5_INFORMATIONAL::display::get_index_state_cached().await)
+    _5_INFORMATIONAL::display::get_index_state_cached().await
 }
 
 #[query]
@@ -340,6 +340,85 @@ fn require_admin() -> Result<()> {
 }
 
 // ===== ADMIN CONTROLS (Phase 2: H-1) =====
+
+/// Debug rebalancing state (admin only)
+///
+/// Returns comprehensive diagnostic information about:
+/// - TVL targets from Kong Locker
+/// - Current token balances
+/// - Portfolio state calculation
+/// - Pricing data
+#[update]
+#[candid_method(update)]
+async fn debug_rebalancing_state() -> Result<String> {
+    require_admin()?;
+
+    let mut output = String::new();
+    output.push_str("=== REBALANCING DIAGNOSTIC REPORT ===\n\n");
+
+    // 1. Get TVL targets from Kong Locker
+    output.push_str("1. Kong Locker TVL (Target Allocations):\n");
+    match _3_KONG_LIQUIDITY::tvl::calculate_kong_locker_tvl().await {
+        Ok(tvl_data) => {
+            let total_tvl: f64 = tvl_data.iter().map(|(_, v)| v).sum();
+            output.push_str(&format!("   Total TVL: ${:.2}\n", total_tvl));
+            for (token, usd_value) in &tvl_data {
+                let percentage = if total_tvl > 0.0 { (usd_value / total_tvl) * 100.0 } else { 0.0 };
+                output.push_str(&format!("   {}: ${:.2} ({:.2}%)\n", token.to_symbol(), usd_value, percentage));
+            }
+        }
+        Err(e) => output.push_str(&format!("   ❌ ERROR: {}\n", e)),
+    }
+    output.push_str("\n");
+
+    // 2. Get current token balances
+    output.push_str("2. Current Token Balances:\n");
+    match _2_CRITICAL_DATA::token_queries::get_all_balances_uncached().await {
+        Ok(balances) => {
+            for (symbol, balance) in balances {
+                output.push_str(&format!("   {}: {}\n", symbol, balance));
+            }
+        }
+        Err(e) => output.push_str(&format!("   ❌ ERROR: {}\n", e)),
+    }
+    output.push_str("\n");
+
+    // 3. Get portfolio state
+    output.push_str("3. Portfolio State:\n");
+    match _2_CRITICAL_DATA::portfolio_value::get_portfolio_state_uncached().await {
+        Ok(state) => {
+            output.push_str(&format!("   Total Value: ${:.2}\n", state.total_value));
+            output.push_str(&format!("   Timestamp: {}\n", state.timestamp));
+            output.push_str("   Current Positions:\n");
+            for pos in &state.current_positions {
+                output.push_str(&format!("     {}: ${:.2} ({:.2}%)\n",
+                    pos.token.to_symbol(), pos.usd_value, pos.percentage));
+            }
+            output.push_str("   Target Allocations:\n");
+            for target in &state.target_allocations {
+                output.push_str(&format!("     {}: {:.2}% (${:.2})\n",
+                    target.token.to_symbol(), target.target_percentage, target.target_usd_value));
+            }
+            output.push_str("   Deviations:\n");
+            for dev in &state.deviations {
+                output.push_str(&format!("     {}: current={:.2}% target={:.2}% deviation={:.2}% usd_diff=${:.2}\n",
+                    dev.token.to_symbol(), dev.current_pct, dev.target_pct, dev.deviation_pct, dev.usd_difference));
+            }
+        }
+        Err(e) => output.push_str(&format!("   ❌ ERROR: {}\n", e)),
+    }
+    output.push_str("\n");
+
+    // 4. Get rebalancer status
+    output.push_str("4. Rebalancer Status:\n");
+    let status = _1_CRITICAL_OPERATIONS::rebalancing::get_rebalancer_status();
+    output.push_str(&format!("   Timer Active: {}\n", status.timer_active));
+    output.push_str(&format!("   Last Rebalance: {:?}\n", status.last_rebalance));
+    output.push_str(&format!("   Next Rebalance: {:?}\n", status.next_rebalance));
+    output.push_str(&format!("   Recent History Entries: {}\n", status.recent_history.len()));
+
+    Ok(output)
+}
 
 /// Emergency pause - stops all minting and burning
 #[update]
