@@ -18,6 +18,7 @@ export interface UserTokenBalance {
 export const QUERY_KEYS = {
   INDEX_STATE: 'indexState',
   REBALANCER_STATUS: 'rebalancerStatus',
+  TRADE_HISTORY: 'tradeHistory',
   TVL_DATA: 'tvlData',
   USER_BALANCE: 'userBalance',
   HOLDINGS: 'holdings',
@@ -154,6 +155,20 @@ export const useRebalancerStatus = (actor: Actor | null) => {
     retry: 0, // Don't retry on timeout
     retryDelay: 1000, // Wait 1s between retries
     onError: (error: any) => console.error('useRebalancerStatus error:', error),
+  })
+}
+
+export const useTradeHistory = (actor: Actor | null) => {
+  return useQuery({
+    queryKey: [QUERY_KEYS.TRADE_HISTORY],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not initialized')
+      const result = await actor.get_trade_history()
+      return result
+    },
+    enabled: !!actor,
+    refetchInterval: 2 * 60_000, // Refetch every 2 minutes
+    staleTime: 2 * 60_000, // Match refetch interval
   })
 }
 
