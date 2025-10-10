@@ -111,6 +111,20 @@ fn get_rebalancer_status() -> _1_CRITICAL_OPERATIONS::rebalancing::RebalancerSta
     _1_CRITICAL_OPERATIONS::rebalancing::get_rebalancer_status()
 }
 
+/// Get full trade history (all trades since deployment)
+#[query]
+#[candid_method(query)]
+fn get_trade_history() -> Vec<_1_CRITICAL_OPERATIONS::rebalancing::RebalanceRecord> {
+    _1_CRITICAL_OPERATIONS::rebalancing::get_full_trade_history()
+}
+
+/// Get paginated trade history
+#[query]
+#[candid_method(query)]
+fn get_trade_history_paginated(offset: u64, limit: u64) -> (Vec<_1_CRITICAL_OPERATIONS::rebalancing::RebalanceRecord>, u64) {
+    _1_CRITICAL_OPERATIONS::rebalancing::get_trade_history_paginated(offset, limit)
+}
+
 #[update]
 #[candid_method(update)]
 fn clear_caches() -> Result<String> {
@@ -288,9 +302,12 @@ fn pre_upgrade() {
     ic_cdk::println!("===================================");
 
     let pending_mints = _1_CRITICAL_OPERATIONS::minting::mint_state::export_state();
-    infrastructure::stable_storage::save_state(pending_mints);
+    let trade_history = _1_CRITICAL_OPERATIONS::rebalancing::export_history_for_stable();
+    let trade_count = trade_history.len();
 
-    ic_cdk::println!("✅ State saved to stable storage");
+    infrastructure::stable_storage::save_state(pending_mints, trade_history);
+
+    ic_cdk::println!("✅ State saved to stable storage ({} trades)", trade_count);
 }
 
 #[post_upgrade]
@@ -299,8 +316,10 @@ fn post_upgrade() {
     ic_cdk::println!("ICPI Backend Post-Upgrade");
     ic_cdk::println!("===================================");
 
-    let pending_mints = infrastructure::stable_storage::restore_state();
+    let (pending_mints, trade_history) = infrastructure::stable_storage::restore_state();
+    let trade_count = trade_history.len();
     _1_CRITICAL_OPERATIONS::minting::mint_state::import_state(pending_mints);
+    _1_CRITICAL_OPERATIONS::rebalancing::load_history_from_stable(trade_history);
 
     match _1_CRITICAL_OPERATIONS::minting::mint_state::cleanup_expired_mints() {
         Ok(count) => {
@@ -329,7 +348,7 @@ fn post_upgrade() {
         }
     );
 
-    ic_cdk::println!("✅ Backend upgraded successfully");
+    ic_cdk::println!("✅ Backend upgraded successfully ({} trades restored)", trade_count);
 }
 
 // ===== HELPER FUNCTIONS =====

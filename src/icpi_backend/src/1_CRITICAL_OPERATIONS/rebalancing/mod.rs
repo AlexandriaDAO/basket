@@ -41,8 +41,12 @@ use num_traits::ToPrimitive;
 use crate::infrastructure::{Result, IcpiError, errors::RebalanceError, REBALANCE_INTERVAL_SECONDS, MIN_TRADE_SIZE_USD, MAX_SLIPPAGE_PERCENT};
 use crate::types::{TrackedToken, rebalancing::AllocationDeviation};
 
-/// Maximum number of rebalance records to keep in history
+/// Maximum number of rebalance records to keep in recent history (fast queries)
 const MAX_REBALANCE_HISTORY: usize = 10;
+
+/// Maximum number of trades to keep in full history (persistent storage)
+/// At 24 trades/day, 10,000 records = ~416 days of history
+const MAX_FULL_HISTORY: usize = 10_000;
 
 // === TYPES ===
 
@@ -104,6 +108,8 @@ thread_local! {
     static REBALANCE_STATE: RefCell<RebalanceState> = RefCell::new(RebalanceState::default());
     static TIMER_ACTIVE: RefCell<bool> = RefCell::new(false);
     static REBALANCING_IN_PROGRESS: RefCell<bool> = RefCell::new(false);
+    /// Full history in stable storage (loaded at startup, persisted on upgrade)
+    static FULL_HISTORY: RefCell<Vec<RebalanceRecord>> = RefCell::new(Vec::new());
 }
 
 // === PUBLIC API ===
@@ -242,6 +248,43 @@ pub fn get_rebalancer_status() -> RebalancerStatus {
             recent_history: state.history.clone(),
         }
     })
+}
+
+/// Get full trade history (all trades since deployment)
+pub fn get_full_trade_history() -> Vec<RebalanceRecord> {
+    FULL_HISTORY.with(|h| h.borrow().clone())
+}
+
+/// Get paginated trade history (more efficient than cloning entire history)
+pub fn get_trade_history_paginated(offset: u64, limit: u64) -> (Vec<RebalanceRecord>, u64) {
+    FULL_HISTORY.with(|h| {
+        let history = h.borrow();
+        let total = history.len() as u64;
+        let start = offset as usize;
+        let end = std::cmp::min(start + (limit as usize), history.len());
+
+        let page = if start < history.len() {
+            history[start..end].to_vec()
+        } else {
+            Vec::new()
+        };
+
+        (page, total)
+    })
+}
+
+/// Load history from stable storage (called in post_upgrade)
+pub fn load_history_from_stable(history: Vec<RebalanceRecord>) {
+    let count = history.len();
+    FULL_HISTORY.with(|h| {
+        *h.borrow_mut() = history;
+    });
+    ic_cdk::println!("✅ Loaded {} trades from stable storage", count);
+}
+
+/// Export history for stable storage (called in pre_upgrade)
+pub fn export_history_for_stable() -> Vec<RebalanceRecord> {
+    FULL_HISTORY.with(|h| h.borrow().clone())
 }
 
 // === CORE LOGIC ===
@@ -492,22 +535,37 @@ async fn execute_sell_action(token: &TrackedToken, usd_value: f64) -> Result<Str
 
 /// Record rebalance result in history
 ///
-/// Keeps last MAX_REBALANCE_HISTORY records for audit trail and debugging.
+/// Keeps last MAX_REBALANCE_HISTORY records for recent history (fast queries)
+/// and adds to full history (persistent, bounded at MAX_FULL_HISTORY).
 fn record_rebalance(action: RebalanceAction, success: bool, details: &str) {
+    let record = RebalanceRecord {
+        timestamp: ic_cdk::api::time(),
+        action: action.clone(),
+        success,
+        details: details.to_string(),
+    };
+
+    // Update recent history (last 10, for get_rebalancer_status)
     REBALANCE_STATE.with(|state| {
         let mut state = state.borrow_mut();
         state.last_rebalance = Some(ic_cdk::api::time());
-
-        state.history.push(RebalanceRecord {
-            timestamp: ic_cdk::api::time(),
-            action,
-            success,
-            details: details.to_string(),
-        });
+        state.history.push(record.clone());
 
         // Keep only last MAX_REBALANCE_HISTORY records
         if state.history.len() > MAX_REBALANCE_HISTORY {
             state.history.remove(0);
+        }
+    });
+
+    // Add to full history (bounded at MAX_FULL_HISTORY, persistent)
+    FULL_HISTORY.with(|h| {
+        let mut history = h.borrow_mut();
+        history.push(record);
+
+        // Keep only last MAX_FULL_HISTORY records to prevent unbounded memory growth
+        if history.len() > MAX_FULL_HISTORY {
+            let excess = history.len() - MAX_FULL_HISTORY;
+            history.drain(0..excess);
         }
     });
 }
