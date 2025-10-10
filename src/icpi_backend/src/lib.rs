@@ -111,6 +111,32 @@ fn get_rebalancer_status() -> _1_CRITICAL_OPERATIONS::rebalancing::RebalancerSta
     _1_CRITICAL_OPERATIONS::rebalancing::get_rebalancer_status()
 }
 
+/// Get full trade history (all trades since deployment)
+#[query]
+#[candid_method(query)]
+fn get_trade_history() -> Vec<_1_CRITICAL_OPERATIONS::rebalancing::RebalanceRecord> {
+    _1_CRITICAL_OPERATIONS::rebalancing::get_full_trade_history()
+}
+
+/// Get paginated trade history
+#[query]
+#[candid_method(query)]
+fn get_trade_history_paginated(offset: u64, limit: u64) -> (Vec<_1_CRITICAL_OPERATIONS::rebalancing::RebalanceRecord>, u64) {
+    let full_history = _1_CRITICAL_OPERATIONS::rebalancing::get_full_trade_history();
+    let total = full_history.len() as u64;
+
+    let start = offset as usize;
+    let end = std::cmp::min(start + (limit as usize), full_history.len());
+
+    let page = if start < full_history.len() {
+        full_history[start..end].to_vec()
+    } else {
+        Vec::new()
+    };
+
+    (page, total)
+}
+
 #[update]
 #[candid_method(update)]
 fn clear_caches() -> Result<String> {
@@ -288,9 +314,11 @@ fn pre_upgrade() {
     ic_cdk::println!("===================================");
 
     let pending_mints = _1_CRITICAL_OPERATIONS::minting::mint_state::export_state();
-    infrastructure::stable_storage::save_state(pending_mints);
+    let trade_history = _1_CRITICAL_OPERATIONS::rebalancing::export_history_for_stable();
 
-    ic_cdk::println!("✅ State saved to stable storage");
+    infrastructure::stable_storage::save_state(pending_mints, trade_history.clone());
+
+    ic_cdk::println!("✅ State saved to stable storage ({} trades)", trade_history.len());
 }
 
 #[post_upgrade]
@@ -299,8 +327,9 @@ fn post_upgrade() {
     ic_cdk::println!("ICPI Backend Post-Upgrade");
     ic_cdk::println!("===================================");
 
-    let pending_mints = infrastructure::stable_storage::restore_state();
+    let (pending_mints, trade_history) = infrastructure::stable_storage::restore_state();
     _1_CRITICAL_OPERATIONS::minting::mint_state::import_state(pending_mints);
+    _1_CRITICAL_OPERATIONS::rebalancing::load_history_from_stable(trade_history.clone());
 
     match _1_CRITICAL_OPERATIONS::minting::mint_state::cleanup_expired_mints() {
         Ok(count) => {
@@ -329,7 +358,7 @@ fn post_upgrade() {
         }
     );
 
-    ic_cdk::println!("✅ Backend upgraded successfully");
+    ic_cdk::println!("✅ Backend upgraded successfully ({} trades restored)", trade_history.len());
 }
 
 // ===== HELPER FUNCTIONS =====

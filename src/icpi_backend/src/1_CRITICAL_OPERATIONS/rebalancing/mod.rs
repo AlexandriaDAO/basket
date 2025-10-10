@@ -104,6 +104,8 @@ thread_local! {
     static REBALANCE_STATE: RefCell<RebalanceState> = RefCell::new(RebalanceState::default());
     static TIMER_ACTIVE: RefCell<bool> = RefCell::new(false);
     static REBALANCING_IN_PROGRESS: RefCell<bool> = RefCell::new(false);
+    /// Full history in stable storage (loaded at startup, persisted on upgrade)
+    static FULL_HISTORY: RefCell<Vec<RebalanceRecord>> = RefCell::new(Vec::new());
 }
 
 // === PUBLIC API ===
@@ -242,6 +244,24 @@ pub fn get_rebalancer_status() -> RebalancerStatus {
             recent_history: state.history.clone(),
         }
     })
+}
+
+/// Get full trade history (all trades since deployment)
+pub fn get_full_trade_history() -> Vec<RebalanceRecord> {
+    FULL_HISTORY.with(|h| h.borrow().clone())
+}
+
+/// Load history from stable storage (called in post_upgrade)
+pub fn load_history_from_stable(history: Vec<RebalanceRecord>) {
+    FULL_HISTORY.with(|h| {
+        *h.borrow_mut() = history;
+    });
+    ic_cdk::println!("✅ Loaded {} trades from stable storage", FULL_HISTORY.with(|h| h.borrow().len()));
+}
+
+/// Export history for stable storage (called in pre_upgrade)
+pub fn export_history_for_stable() -> Vec<RebalanceRecord> {
+    FULL_HISTORY.with(|h| h.borrow().clone())
 }
 
 // === CORE LOGIC ===
@@ -492,22 +512,30 @@ async fn execute_sell_action(token: &TrackedToken, usd_value: f64) -> Result<Str
 
 /// Record rebalance result in history
 ///
-/// Keeps last MAX_REBALANCE_HISTORY records for audit trail and debugging.
+/// Keeps last MAX_REBALANCE_HISTORY records for recent history (fast queries)
+/// and adds to full history (persistent, unlimited).
 fn record_rebalance(action: RebalanceAction, success: bool, details: &str) {
+    let record = RebalanceRecord {
+        timestamp: ic_cdk::api::time(),
+        action: action.clone(),
+        success,
+        details: details.to_string(),
+    };
+
+    // Update recent history (last 10, for get_rebalancer_status)
     REBALANCE_STATE.with(|state| {
         let mut state = state.borrow_mut();
         state.last_rebalance = Some(ic_cdk::api::time());
-
-        state.history.push(RebalanceRecord {
-            timestamp: ic_cdk::api::time(),
-            action,
-            success,
-            details: details.to_string(),
-        });
+        state.history.push(record.clone());
 
         // Keep only last MAX_REBALANCE_HISTORY records
         if state.history.len() > MAX_REBALANCE_HISTORY {
             state.history.remove(0);
         }
+    });
+
+    // Add to full history (unlimited, persistent)
+    FULL_HISTORY.with(|h| {
+        h.borrow_mut().push(record);
     });
 }

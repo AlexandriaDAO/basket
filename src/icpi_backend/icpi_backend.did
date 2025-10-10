@@ -139,6 +139,10 @@ service : {
     perform_rebalance : () -> (variant { Ok : text; Err : text });
     trigger_manual_rebalance : () -> (variant { Ok : text; Err : text });
 
+    // Trade History
+    get_trade_history : () -> (vec RebalanceRecord) query;
+    get_trade_history_paginated : (nat64, nat64) -> (vec RebalanceRecord, nat64) query;
+
     // System Info
     get_canister_id : () -> (principal) query;
     get_cycles_balance : () -> (nat) query;

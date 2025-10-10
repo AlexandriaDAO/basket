@@ -3,15 +3,18 @@
 use candid::{CandidType, Deserialize};
 use std::collections::HashMap;
 use crate::_1_CRITICAL_OPERATIONS::minting::mint_state::PendingMint;
+use crate::_1_CRITICAL_OPERATIONS::rebalancing::RebalanceRecord;
 
 #[derive(CandidType, Deserialize, Default)]
 pub struct StableState {
     pub pending_mints: HashMap<String, PendingMint>,
+    pub trade_history: Vec<RebalanceRecord>,
 }
 
-pub fn save_state(pending_mints: HashMap<String, PendingMint>) {
-    let state = StableState { pending_mints };
-    ic_cdk::println!("💾 Saving {} pending mints to stable storage", state.pending_mints.len());
+pub fn save_state(pending_mints: HashMap<String, PendingMint>, trade_history: Vec<RebalanceRecord>) {
+    let state = StableState { pending_mints, trade_history };
+    ic_cdk::println!("💾 Saving {} pending mints and {} trades to stable storage",
+        state.pending_mints.len(), state.trade_history.len());
 
     // Handle serialization errors gracefully - log but don't panic
     // This is critical for production: if stable storage fails, we log the error
@@ -30,10 +33,11 @@ pub fn save_state(pending_mints: HashMap<String, PendingMint>) {
     }
 }
 
-pub fn restore_state() -> HashMap<String, PendingMint> {
+pub fn restore_state() -> (HashMap<String, PendingMint>, Vec<RebalanceRecord>) {
     match ic_cdk::storage::stable_restore::<(StableState,)>() {
         Ok((state,)) => {
-            ic_cdk::println!("✅ Restored {} pending mints from stable storage", state.pending_mints.len());
+            ic_cdk::println!("✅ Restored {} pending mints and {} trades from stable storage",
+                state.pending_mints.len(), state.trade_history.len());
             let now = ic_cdk::api::time();
             let cleaned: HashMap<_, _> = state.pending_mints.into_iter()
                 .filter(|(id, mint)| {
@@ -45,11 +49,11 @@ pub fn restore_state() -> HashMap<String, PendingMint> {
                     is_valid
                 })
                 .collect();
-            cleaned
+            (cleaned, state.trade_history)
         }
         Err(e) => {
             ic_cdk::println!("⚠️  No stable state to restore (first deployment or empty): {}", e);
-            HashMap::new()
+            (HashMap::new(), Vec::new())
         }
     }
 }
