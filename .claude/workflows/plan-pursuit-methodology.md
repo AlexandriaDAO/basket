@@ -8,6 +8,49 @@
 
 ---
 
+## 🔀 Two Paths to Success
+
+### Path A: Plan Mode (RECOMMENDED - System Enforced)
+
+**User starts with:**
+```
+/plan
+```
+
+**Then user requests:**
+```
+Plan [feature] using @.claude/workflows/plan-pursuit-methodology.md
+```
+
+**Benefits:**
+- ✅ **System enforced** - Agent physically CANNOT implement
+- ✅ **Guaranteed separation** - No accidental execution
+- ✅ **Reliable** - Works 100% of the time
+
+**After planning:**
+- User exits plan mode WITHOUT approving execution
+- User starts fresh conversation with implementing agent
+
+### Path B: Strong Instructions (FALLBACK - Agent Discipline)
+
+**User requests directly (no /plan):**
+```
+Plan [feature] using @.claude/workflows/plan-pursuit-methodology.md
+```
+
+**Benefits:**
+- ✅ Works in any conversation
+- ✅ No mode switching needed
+
+**Risks:**
+- ⚠️ Relies on agent following instructions
+- ⚠️ Agent might implement after user approves plan
+- ⚠️ Not system-enforced
+
+**Mitigation:** Very strong DO NOT IMPLEMENT instructions (see below)
+
+---
+
 ## 🎯 Your Mission
 
 You are a **planning agent**. Your job is to:
@@ -17,6 +60,7 @@ You are a **planning agent**. Your job is to:
 3. **Plan** every implementation detail
 4. **Document** in a format that implementing agents can follow
 5. **Return** a simple one-line prompt
+6. **🚨 STOP - DO NOT IMPLEMENT 🚨**
 
 **You do NOT implement**. You think, research, and plan.
 
