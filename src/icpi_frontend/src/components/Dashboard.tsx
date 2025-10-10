@@ -2,9 +2,12 @@ import React, { useState } from 'react'
 import { PortfolioDashboard } from './PortfolioDashboard'
 import { TradeInterface } from './TradeInterface'
 import { WalletBalances } from './WalletBalances'
+import { TradeHistoryPanel } from './TradeHistoryPanel'
 import { UserTokenBalance } from '@/hooks/useICPI'
 import { formatNumber, shortenAddress } from '@/lib/utils'
 import { Copy } from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
+import { RebalanceRecord } from '@/types/icpi'
 
 interface DashboardProps {
   principal: string
@@ -16,6 +19,7 @@ interface DashboardProps {
   userUSDTBalance: number
   tokenHoldings: any[]
   walletBalances: UserTokenBalance[]
+  tradeHistory: RebalanceRecord[]
   onDisconnect: () => void
   onMint: (amount: number) => Promise<void>
   onRedeem: (amount: number) => Promise<void>
@@ -35,6 +39,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   userUSDTBalance,
   tokenHoldings,
   walletBalances,
+  tradeHistory,
   onDisconnect,
   onMint,
   onRedeem,
@@ -89,36 +94,49 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       <div className="container py-3 px-3">
-        {/* Responsive grid: 1 col (mobile) -> 2 col (tablet) -> 3 col (desktop) */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] xl:grid-cols-[1.5fr_1fr_1fr] gap-3">
-          {/* Left: Portfolio Dashboard */}
-          <PortfolioDashboard
-            portfolioData={portfolioData}
-            allocations={allocations}
-            rebalancingData={rebalancingData}
-            onManualRebalance={onManualRebalance}
-            onToggleAutoRebalance={onToggleAutoRebalance}
-          />
+        <Tabs defaultValue="portfolio" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="portfolio">PORTFOLIO</TabsTrigger>
+            <TabsTrigger value="history">TRADE HISTORY</TabsTrigger>
+          </TabsList>
 
-          {/* Middle: Trade Interface */}
-          <TradeInterface
-            currentTVL={tvl}
-            currentSupply={portfolioData.totalSupply}
-            userUSDTBalance={userUSDTBalance}
-            onMint={onMint}
-            userICPIBalance={userICPIBalance}
-            tokenHoldings={tokenHoldings}
-            onRedeem={onRedeem}
-          />
+          <TabsContent value="portfolio">
+            {/* Responsive grid: 1 col (mobile) -> 2 col (tablet) -> 3 col (desktop) */}
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] xl:grid-cols-[1.5fr_1fr_1fr] gap-3">
+              {/* Left: Portfolio Dashboard */}
+              <PortfolioDashboard
+                portfolioData={portfolioData}
+                allocations={allocations}
+                rebalancingData={rebalancingData}
+                onManualRebalance={onManualRebalance}
+                onToggleAutoRebalance={onToggleAutoRebalance}
+              />
 
-          {/* Right: Wallet Balances */}
-          <WalletBalances
-            balances={walletBalances}
-            userPrincipal={principal}
-            onSendToken={onSendToken}
-            onRefresh={onRefreshBalances}
-          />
-        </div>
+              {/* Middle: Trade Interface */}
+              <TradeInterface
+                currentTVL={tvl}
+                currentSupply={portfolioData.totalSupply}
+                userUSDTBalance={userUSDTBalance}
+                onMint={onMint}
+                userICPIBalance={userICPIBalance}
+                tokenHoldings={tokenHoldings}
+                onRedeem={onRedeem}
+              />
+
+              {/* Right: Wallet Balances */}
+              <WalletBalances
+                balances={walletBalances}
+                userPrincipal={principal}
+                onSendToken={onSendToken}
+                onRefresh={onRefreshBalances}
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="history">
+            <TradeHistoryPanel history={tradeHistory} />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   )

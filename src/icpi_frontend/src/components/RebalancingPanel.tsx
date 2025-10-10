@@ -7,6 +7,7 @@ import { Switch } from './ui/switch'
 import { Separator } from './ui/separator'
 import { ScrollArea } from './ui/scroll-area'
 import { Activity, RefreshCw, Loader2, Info, Clock, ArrowRight } from 'lucide-react'
+import { RebalanceRecord, formatRebalanceAction, formatTradeTimestamp } from '../types/icpi'
 
 interface RebalanceAction {
   type: 'buy' | 'sell'
@@ -25,7 +26,7 @@ interface RebalanceHistoryItem {
 interface RebalancingPanelProps {
   nextRebalance: Date
   nextAction: RebalanceAction | null
-  rebalanceHistory: RebalanceHistoryItem[]
+  rebalanceHistory: RebalanceRecord[]
   isRebalancing: boolean
   onManualRebalance: () => Promise<void>
   onToggleAutoRebalance: (enabled: boolean) => void
@@ -170,20 +171,42 @@ export const RebalancingPanel: React.FC<RebalancingPanelProps> = ({
           <h4 className="text-[10px] text-[#666666] uppercase">Recent Activity</h4>
           <div className="space-y-1 max-h-[150px] overflow-y-auto">
             {rebalanceHistory.length > 0 ? (
-              rebalanceHistory.slice(0, 5).map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between py-1 text-xs border-b border-[#1f1f1f] last:border-0">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-1.5 h-1.5 ${
-                      item.status === 'success' ? 'bg-[#00FF41]' : 'bg-[#FF0055]'
-                    }`} />
-                    <span className="text-[#999999]">{item.action.type.toUpperCase()}</span>
-                    <span className="text-white font-sans">{item.action.token}</span>
+              rebalanceHistory.slice(0, 5).map((record, idx) => {
+                const actionInfo = formatRebalanceAction(record.action)
+                const timestamp = formatTradeTimestamp(record.timestamp)
+
+                if (actionInfo.type === 'none') {
+                  return (
+                    <div key={idx} className="flex items-center justify-between py-1 text-xs border-b border-[#1f1f1f] last:border-0">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 bg-[#666666]" />
+                        <span className="text-[#999999]">NO ACTION</span>
+                      </div>
+                      <span className="text-[#666666] font-mono text-[10px]">
+                        {new Date(timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  )
+                }
+
+                return (
+                  <div key={idx} className="flex items-center justify-between py-1 text-xs border-b border-[#1f1f1f] last:border-0">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-1.5 h-1.5 ${
+                        record.success ? 'bg-[#00FF41]' : 'bg-[#FF0055]'
+                      }`} />
+                      <span className="text-[#999999]">{actionInfo.type.toUpperCase()}</span>
+                      <span className="text-white font-sans">{actionInfo.token}</span>
+                      <span className="text-[#666666] text-[10px]">
+                        ${actionInfo.amount.toFixed(2)}
+                      </span>
+                    </div>
+                    <span className="text-[#666666] font-mono text-[10px]" title={timestamp}>
+                      {new Date(timestamp).toLocaleTimeString()}
+                    </span>
                   </div>
-                  <span className="text-[#666666] font-mono text-[10px]">
-                    {new Date(item.timestamp).toLocaleTimeString()}
-                  </span>
-                </div>
-              ))
+                )
+              })
             ) : (
               <div className="text-[10px] text-[#666666] py-2 text-center">
                 No activity yet

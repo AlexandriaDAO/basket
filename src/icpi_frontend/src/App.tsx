@@ -14,6 +14,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import {
   useIndexState,
   useRebalancerStatus,
+  useTradeHistory,
   useTVLData,
   useHoldings,
   useAllocation,
@@ -221,6 +222,7 @@ function DashboardContent({
   // Now hooks fire ONCE with valid actor, not multiple times with null
   const { data: indexState, isLoading: indexLoading } = useIndexState(actor);
   const { data: rebalancerStatus } = useRebalancerStatus(actor);
+  const { data: tradeHistory } = useTradeHistory(actor);
   const { data: tvlData } = useTVLData(actor);
   const { data: holdings } = useHoldings(actor);
   const { data: allocations } = useAllocation(actor);
@@ -254,9 +256,11 @@ function DashboardContent({
   };
 
   const rebalancingData = {
-    nextRebalance: new Date(Date.now() + 3600000), // TODO: Get from rebalancer status
-    nextAction: rebalancerStatus?.next_action || null,
-    history: rebalancerStatus?.history || [],
+    nextRebalance: rebalancerStatus?.next_rebalance?.[0]
+      ? new Date(Number(rebalancerStatus.next_rebalance[0] / 1_000_000n))
+      : new Date(Date.now() + 3600000),
+    nextAction: null, // Will compute from first deviation in future enhancement
+    history: rebalancerStatus?.recent_history || [],
     isRebalancing: rebalanceMutation.isLoading,
     autoEnabled: autoRebalance,
   };
@@ -354,6 +358,7 @@ function DashboardContent({
           userUSDTBalance={userUSDTBalance}
           tokenHoldings={holdings || []}
           walletBalances={walletBalances || []}
+          tradeHistory={tradeHistory || []}
           onDisconnect={logout}
           onMint={handleMint}
           onRedeem={handleRedeem}
