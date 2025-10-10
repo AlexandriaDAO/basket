@@ -20,6 +20,8 @@ interface DashboardProps {
   tokenHoldings: any[]
   walletBalances: UserTokenBalance[]
   tradeHistory: RebalanceRecord[]
+  tradeHistoryLoading?: boolean
+  tradeHistoryError?: Error
   onDisconnect: () => void
   onMint: (amount: number) => Promise<void>
   onRedeem: (amount: number) => Promise<void>
@@ -40,6 +42,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   tokenHoldings,
   walletBalances,
   tradeHistory,
+  tradeHistoryLoading,
+  tradeHistoryError,
   onDisconnect,
   onMint,
   onRedeem,
@@ -134,7 +138,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </TabsContent>
 
           <TabsContent value="history">
-            <TradeHistoryPanel history={tradeHistory} />
+            <TradeHistoryPanel
+              history={tradeHistory}
+              isLoading={tradeHistoryLoading}
+              error={tradeHistoryError}
+            />
           </TabsContent>
         </Tabs>
       </div>

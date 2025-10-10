@@ -222,7 +222,7 @@ function DashboardContent({
   // Now hooks fire ONCE with valid actor, not multiple times with null
   const { data: indexState, isLoading: indexLoading } = useIndexState(actor);
   const { data: rebalancerStatus } = useRebalancerStatus(actor);
-  const { data: tradeHistory } = useTradeHistory(actor);
+  const { data: tradeHistory, isLoading: tradeHistoryLoading, error: tradeHistoryError } = useTradeHistory(actor);
   const { data: tvlData } = useTVLData(actor);
   const { data: holdings } = useHoldings(actor);
   const { data: allocations } = useAllocation(actor);
@@ -359,6 +359,8 @@ function DashboardContent({
           tokenHoldings={holdings || []}
           walletBalances={walletBalances || []}
           tradeHistory={tradeHistory || []}
+          tradeHistoryLoading={tradeHistoryLoading}
+          tradeHistoryError={tradeHistoryError as Error | undefined}
           onDisconnect={logout}
           onMint={handleMint}
           onRedeem={handleRedeem}

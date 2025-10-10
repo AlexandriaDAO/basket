@@ -168,7 +168,7 @@ export const useTradeHistory = (actor: Actor | null) => {
     },
     enabled: !!actor,
     refetchInterval: 2 * 60_000, // Refetch every 2 minutes
-    staleTime: 60_000,
+    staleTime: 2 * 60_000, // Match refetch interval
   })
 }
 

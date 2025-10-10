@@ -4,14 +4,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { ScrollArea } from './ui/scroll-area'
-import { Download, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Download, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react'
 import { RebalanceRecord, formatRebalanceAction, formatTradeTimestamp } from '../types/icpi'
+import { Alert, AlertDescription } from './ui/alert'
 
 interface TradeHistoryPanelProps {
   history: RebalanceRecord[]
+  isLoading?: boolean
+  error?: Error
 }
 
-export const TradeHistoryPanel: React.FC<TradeHistoryPanelProps> = ({ history }) => {
+export const TradeHistoryPanel: React.FC<TradeHistoryPanelProps> = ({ history, isLoading = false, error }) => {
   const [currentPage, setCurrentPage] = useState(1)
   const ITEMS_PER_PAGE = 20
 
@@ -19,6 +22,25 @@ export const TradeHistoryPanel: React.FC<TradeHistoryPanelProps> = ({ history })
   const startIdx = (currentPage - 1) * ITEMS_PER_PAGE
   const endIdx = startIdx + ITEMS_PER_PAGE
   const currentPageData = history.slice(startIdx, endIdx)
+
+  // Show error state if query failed
+  if (error) {
+    return (
+      <Card className="border-[#1f1f1f]">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">TRADE HISTORY</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Failed to load trade history: {error.message}
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    )
+  }
 
   const handleExport = () => {
     // Convert to CSV
@@ -57,6 +79,7 @@ export const TradeHistoryPanel: React.FC<TradeHistoryPanelProps> = ({ history })
             onClick={handleExport}
             className="text-xs"
             disabled={history.length === 0}
+            aria-label="Export trade history as CSV"
           >
             <Download className="h-3 w-3 mr-1" />
             EXPORT
@@ -89,7 +112,7 @@ export const TradeHistoryPanel: React.FC<TradeHistoryPanelProps> = ({ history })
                       </TableCell>
                       <TableCell>
                         <Badge
-                          variant={action.type === 'buy' ? 'default' : action.type === 'sell' ? 'secondary' : 'outline'}
+                          variant={action.type === 'buy' ? 'info' : action.type === 'sell' ? 'warning' : 'outline'}
                           className="text-[10px]"
                         >
                           {action.type.toUpperCase()}
@@ -140,6 +163,7 @@ export const TradeHistoryPanel: React.FC<TradeHistoryPanelProps> = ({ history })
                 size="sm"
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
+                aria-label="Previous page"
               >
                 <ChevronLeft className="h-3 w-3" />
               </Button>
@@ -148,6 +172,7 @@ export const TradeHistoryPanel: React.FC<TradeHistoryPanelProps> = ({ history })
                 size="sm"
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
+                aria-label="Next page"
               >
                 <ChevronRight className="h-3 w-3" />
               </Button>
