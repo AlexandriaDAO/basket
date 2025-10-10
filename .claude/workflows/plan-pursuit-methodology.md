@@ -503,13 +503,102 @@ Proper handoff:
 
 ---
 
-## Ready to Plan?
+## 📖 Examples of Both Paths
+
+### Example: Plan Mode (Recommended)
+
+**User enters plan mode:**
+```
+/plan
+```
+
+**User requests:**
+```
+Plan slippage format fixes using @.claude/workflows/plan-pursuit-methodology.md
+```
+
+**Agent researches, creates plan, responds:**
+```
+✅ Plan Complete: Slippage Format Fixes
+
+Document: SLIPPAGE_FORMAT_FIX_PLAN.md
+Estimated: 2 hours, 1 PR
+
+Handoff prompt for fresh agent:
+
+Pursue @SLIPPAGE_FORMAT_FIX_PLAN.md
+
+---
+
+🚨 PLANNING AGENT - YOUR JOB IS DONE
+
+[... DO NOT implement list ...]
+
+🛑 END CONVERSATION HERE 🛑
+```
+
+**User exits plan mode, starts new conversation:**
+```
+Pursue @SLIPPAGE_FORMAT_FIX_PLAN.md
+```
+
+**Fresh agent implements autonomously** ✅
+
+### Example: Without Plan Mode (Fallback)
+
+**User requests mid-conversation:**
+```
+Plan the user authentication system using @.claude/workflows/plan-pursuit-methodology.md
+```
+
+**Agent researches, creates plan, responds:**
+```
+✅ Plan Complete: User Authentication System
+
+Document: AUTH_SYSTEM_PLAN.md
+Estimated: 6 hours, 2 PRs
+
+Handoff prompt for fresh agent:
+
+Pursue @AUTH_SYSTEM_PLAN.md
+
+---
+
+🚨 PLANNING AGENT - YOUR JOB IS DONE
+🛑 END CONVERSATION HERE 🛑
+```
+
+**User (hopefully!) starts new conversation:**
+```
+Pursue @AUTH_SYSTEM_PLAN.md
+```
+
+**Fresh agent implements** ✅
+
+**Risk:** If user says "looks good, proceed" in same conversation, agent might implement despite warnings. Plan Mode eliminates this risk.
+
+---
+
+## 📝 Ready to Plan?
 
 When user says: "Use plan-pursuit-methodology"
 
-1. Ask clarifying questions about the feature
+### Your Workflow:
+
+1. Ask clarifying questions (if needed)
 2. Research codebase exhaustively (Read, Grep, etc.)
 3. Create exhaustive plan document
 4. Return simple prompt: "Pursue @plan_document.md"
+5. **🛑 STOP - Do not implement**
+
+### If in Plan Mode:
+- User will exit plan mode
+- User will start fresh conversation
+- Implementing agent will execute
+
+### If NOT in Plan Mode:
+- User should start fresh conversation
+- If user says "go ahead" → redirect to fresh conversation
+- Do not implement under any circumstances
 
 **START PLANNING.**
