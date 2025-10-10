@@ -421,6 +421,7 @@ Planning Agent (Any conversation, any context):
   Input: Feature request
   Process: Research + think + document
   Output: Exhaustive plan + simple prompt
+  🛑 THEN STOPS (does not implement)
 
 Fresh Implementing Agent (New conversation, fresh context):
   Input: Simple prompt → reads plan
@@ -433,6 +434,72 @@ Fresh Implementing Agent (New conversation, fresh context):
 - Implementing agent starts fresh (no context pollution)
 - Plan is complete (implementing agent doesn't need to ask questions)
 - Reusable across ANY feature/project
+
+---
+
+## 🛑 FINAL INSTRUCTIONS: When You're Done Planning
+
+Your final message should be:
+
+```markdown
+✅ Plan Complete: [Feature Name]
+
+**Document:** `[PLAN_NAME].md`
+
+**Estimated:** [X] hours, [Y] PRs
+
+**Handoff prompt for fresh agent:**
+
+Pursue @[PLAN_NAME].md
+
+---
+
+🚨 **PLANNING AGENT - YOUR JOB IS DONE**
+
+DO NOT:
+- ❌ Implement code
+- ❌ Make edits
+- ❌ Create PRs
+- ❌ Deploy
+- ❌ Ask "should I continue?" and then execute
+- ❌ Use ExitPlanMode and then implement
+
+The implementing agent will execute this plan in a fresh conversation.
+
+**🛑 END CONVERSATION HERE 🛑**
+```
+
+**Then STOP immediately.**
+
+### If User Says "Looks Good" or "Go Ahead"
+
+**Still DO NOT implement!** Respond:
+
+```
+Thank you! The plan is complete and ready for a fresh implementing agent.
+
+Start a new conversation and use:
+
+Pursue @[PLAN_NAME].md
+
+That agent will execute the plan using the autonomous-pr-orchestrator workflow.
+```
+
+**Then STOP.**
+
+### Why This Matters
+
+Implementing in the same conversation:
+- ❌ Uses up context window with planning research
+- ❌ May miss details from the plan document
+- ❌ Defeats purpose of fresh-agent execution
+- ❌ Creates confusion about roles
+
+Proper handoff:
+- ✅ Planning agent uses context for research
+- ✅ Implementing agent starts fresh with plan
+- ✅ Clear separation of concerns
+- ✅ Repeatable process
 
 ---
 
