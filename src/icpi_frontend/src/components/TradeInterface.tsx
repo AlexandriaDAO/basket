@@ -41,6 +41,7 @@ export const TradeInterface: React.FC<TradeInterfaceProps> = ({
   const [isMinting, setIsMinting] = useState(false)
   const [isRedeeming, setIsRedeeming] = useState(false)
   const [error, setError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
 
   const calculateMintReceive = (usdtAmount: number) => {
     if (currentSupply === 0) return usdtAmount
@@ -71,11 +72,15 @@ export const TradeInterface: React.FC<TradeInterfaceProps> = ({
     }
 
     setError('')
+    setSuccessMessage('')
     setIsMinting(true)
     try {
       await onMint(amount)
       setMintAmount('')
+      setSuccessMessage(`Successfully minted ${mintReceive.toFixed(6)} ICPI`)
+      setTimeout(() => setSuccessMessage(''), 5000)
     } catch (err: any) {
+      setSuccessMessage('')
       const errMsg = err.message || ''
       if (errMsg.includes('InsufficientFunds') || errMsg.includes('insufficient funds')) {
         setError(`Insufficient USDT balance (need ${amount} + ${CKUSDT_FEE} fee)`)
@@ -103,11 +108,16 @@ export const TradeInterface: React.FC<TradeInterfaceProps> = ({
     }
 
     setError('')
+    setSuccessMessage('')
     setIsRedeeming(true)
     try {
       await onRedeem(amount)
       setRedeemAmount('')
+      const tokenList = redeemReceive.map(t => `${t.amount.toFixed(6)} ${t.token}`).join(', ')
+      setSuccessMessage(`Successfully redeemed ${amount} ICPI for ${tokenList}`)
+      setTimeout(() => setSuccessMessage(''), 5000)
     } catch (err: any) {
+      setSuccessMessage('')
       const errMsg = err.message || ''
       if (errMsg.includes('InsufficientFunds') || errMsg.includes('insufficient funds')) {
         setError(`Insufficient ICPI balance (need ${amount} + ${ICPI_FEE} fee)`)
@@ -281,6 +291,12 @@ export const TradeInterface: React.FC<TradeInterfaceProps> = ({
           </Button>
         </CardContent>
       </Card>
+
+      {successMessage && (
+        <div className="px-2 py-1 bg-[#00FF4120] border border-[#00FF41] text-[#00FF41] text-xs">
+          {successMessage}
+        </div>
+      )}
 
       {error && (
         <div className="px-2 py-1 bg-[#FF005520] border border-[#FF0055] text-[#FF0055] text-xs">

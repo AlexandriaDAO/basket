@@ -316,6 +316,7 @@ export const useMintICPI = (actor: Actor | null, agent: HttpAgent | null) => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.USER_BALANCE] })
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.HOLDINGS] })
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.USER_WALLET_BALANCES] })
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.TOTAL_SUPPLY] })
     },
   })
 }
@@ -398,6 +399,7 @@ export const useRedeemICPI = (actor: Actor | null, agent: HttpAgent | null) => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.USER_BALANCE] })
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.HOLDINGS] })
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.USER_WALLET_BALANCES] })
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.TOTAL_SUPPLY] })
     },
   })
 }
