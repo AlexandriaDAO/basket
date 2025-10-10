@@ -41,8 +41,12 @@ use num_traits::ToPrimitive;
 use crate::infrastructure::{Result, IcpiError, errors::RebalanceError, REBALANCE_INTERVAL_SECONDS, MIN_TRADE_SIZE_USD, MAX_SLIPPAGE_PERCENT};
 use crate::types::{TrackedToken, rebalancing::AllocationDeviation};
 
-/// Maximum number of rebalance records to keep in history
+/// Maximum number of rebalance records to keep in recent history (fast queries)
 const MAX_REBALANCE_HISTORY: usize = 10;
+
+/// Maximum number of trades to keep in full history (persistent storage)
+/// At 24 trades/day, 10,000 records = ~416 days of history
+const MAX_FULL_HISTORY: usize = 10_000;
 
 // === TYPES ===
 
@@ -251,12 +255,31 @@ pub fn get_full_trade_history() -> Vec<RebalanceRecord> {
     FULL_HISTORY.with(|h| h.borrow().clone())
 }
 
+/// Get paginated trade history (more efficient than cloning entire history)
+pub fn get_trade_history_paginated(offset: u64, limit: u64) -> (Vec<RebalanceRecord>, u64) {
+    FULL_HISTORY.with(|h| {
+        let history = h.borrow();
+        let total = history.len() as u64;
+        let start = offset as usize;
+        let end = std::cmp::min(start + (limit as usize), history.len());
+
+        let page = if start < history.len() {
+            history[start..end].to_vec()
+        } else {
+            Vec::new()
+        };
+
+        (page, total)
+    })
+}
+
 /// Load history from stable storage (called in post_upgrade)
 pub fn load_history_from_stable(history: Vec<RebalanceRecord>) {
+    let count = history.len();
     FULL_HISTORY.with(|h| {
         *h.borrow_mut() = history;
     });
-    ic_cdk::println!("✅ Loaded {} trades from stable storage", FULL_HISTORY.with(|h| h.borrow().len()));
+    ic_cdk::println!("✅ Loaded {} trades from stable storage", count);
 }
 
 /// Export history for stable storage (called in pre_upgrade)
@@ -513,7 +536,7 @@ async fn execute_sell_action(token: &TrackedToken, usd_value: f64) -> Result<Str
 /// Record rebalance result in history
 ///
 /// Keeps last MAX_REBALANCE_HISTORY records for recent history (fast queries)
-/// and adds to full history (persistent, unlimited).
+/// and adds to full history (persistent, bounded at MAX_FULL_HISTORY).
 fn record_rebalance(action: RebalanceAction, success: bool, details: &str) {
     let record = RebalanceRecord {
         timestamp: ic_cdk::api::time(),
@@ -534,8 +557,15 @@ fn record_rebalance(action: RebalanceAction, success: bool, details: &str) {
         }
     });
 
-    // Add to full history (unlimited, persistent)
+    // Add to full history (bounded at MAX_FULL_HISTORY, persistent)
     FULL_HISTORY.with(|h| {
-        h.borrow_mut().push(record);
+        let mut history = h.borrow_mut();
+        history.push(record);
+
+        // Keep only last MAX_FULL_HISTORY records to prevent unbounded memory growth
+        if history.len() > MAX_FULL_HISTORY {
+            let excess = history.len() - MAX_FULL_HISTORY;
+            history.drain(0..excess);
+        }
     });
 }
